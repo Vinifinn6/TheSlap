@@ -14,20 +14,20 @@ const funFacts = [
 ]
 
 // Configuração do Imgur
-const IMGUR_CLIENT_ID = "sua_client_id_do_imgur" // Substitua pela sua Client ID do Imgur
+const IMGUR_CLIENT_ID = "353a61ba6d157df[" // Substitua pela sua Client ID do Imgur
 
 // Configuração do Auth0
 const auth0Config = {
-  domain: "seu_dominio_auth0", // Substitua pelo seu domínio Auth0
-  clientId: "seu_client_id_auth0", // Substitua pelo seu Client ID Auth0
+  domain: "vinifinn6.us.auth0.com", // Substitua pelo seu domínio Auth0
+  clientId: "OuKs70nxKcQCb43urRJ8LbiHpOcnm0Ui", // Substitua pelo seu Client ID Auth0
   redirectUri: window.location.origin,
-  audience: "sua_api_audience", // Substitua pela sua API Audience
+  audience: "https://api.theslap.com", // Substitua pela sua API Audience
   scope: "openid profile email",
 }
 
 // Configuração do CockroachDB
 const dbConfig = {
-  apiUrl: "sua_url_da_api", // Substitua pela sua URL da API
+  apiUrl: "https://the-slap.vercel.app/api", // Substitua pela sua URL da API
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -49,6 +49,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Função para inicializar o Auth0
 async function initAuth0() {
   try {
+    // Verificar se o Auth0 está disponível
+    if (typeof createAuth0Client !== "function") {
+      console.error("Auth0 não está disponível. Verifique se o script do Auth0 foi carregado corretamente.")
+      showAlert("Erro ao inicializar autenticação. Por favor, recarregue a página.", "error")
+      return
+    }
+
     auth0Client = await createAuth0Client({
       domain: auth0Config.domain,
       clientId: auth0Config.clientId,
@@ -80,6 +87,7 @@ async function initAuth0() {
   } catch (error) {
     console.error("Erro ao inicializar Auth0:", error)
     showAlert("Erro ao inicializar autenticação. Por favor, tente novamente mais tarde.", "error")
+    showLogin() // Mostrar tela de login mesmo em caso de erro
   }
 }
 
@@ -125,6 +133,29 @@ function setupEventListeners() {
       previewImage(event, "preview-1")
     })
   }
+
+  // Adicionar event listeners para os botões de login e registro
+  document.querySelectorAll(".auth-button").forEach((button) => {
+    button.addEventListener("click", function () {
+      if (this.textContent.trim() === "Entrar") {
+        login()
+      } else if (this.textContent.trim() === "Registrar") {
+        register()
+      }
+    })
+  })
+
+  // Adicionar event listeners para os links de login e registro
+  document.querySelectorAll(".form-footer a").forEach((link) => {
+    link.addEventListener("click", function (e) {
+      e.preventDefault()
+      if (this.textContent.trim() === "Entre") {
+        showLogin()
+      } else if (this.textContent.trim() === "Registre-se") {
+        showRegister()
+      }
+    })
+  })
 }
 
 // Função para fazer upload de imagem para o Imgur
@@ -371,14 +402,28 @@ async function apiRequest(endpoint, method = "GET", data = null) {
   const url = `${dbConfig.apiUrl}/${endpoint}`
 
   try {
-    const token = await auth0Client.getTokenSilently()
+    let token = ""
+
+    // Tentar obter o token apenas se o usuário estiver autenticado
+    if (auth0Client) {
+      try {
+        token = await auth0Client.getTokenSilently()
+      } catch (tokenError) {
+        console.warn("Não foi possível obter o token:", tokenError)
+        // Continuar sem token se não for possível obtê-lo
+      }
+    }
 
     const options = {
       method,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
+    }
+
+    // Adicionar token de autorização se disponível
+    if (token) {
+      options.headers.Authorization = `Bearer ${token}`
     }
 
     if (data && (method === "POST" || method === "PUT" || method === "PATCH")) {
@@ -387,14 +432,25 @@ async function apiRequest(endpoint, method = "GET", data = null) {
 
     const response = await fetch(url, options)
 
+    // Tratar erros HTTP
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `API request failed: ${response.status} ${response.statusText}`)
+      let errorMessage = `Erro na API: ${response.status} ${response.statusText}`
+
+      try {
+        const errorData = await response.json()
+        if (errorData && errorData.error) {
+          errorMessage = errorData.error
+        }
+      } catch (e) {
+        // Ignorar erro ao tentar ler o corpo da resposta
+      }
+
+      throw new Error(errorMessage)
     }
 
     return await response.json()
   } catch (error) {
-    console.error("API request error:", error)
+    console.error(`Erro na requisição para ${url}:`, error)
     throw error
   }
 }
@@ -868,6 +924,11 @@ async function addComment(postId) {
 // Funções de amizade
 async function loadFriends() {
   const friendsListElement = document.getElementById("friends-list")
+  if (!friendsListElement) {
+    console.error("Elemento friends-list não encontrado")
+    return
+  }
+
   friendsListElement.innerHTML = '<div class="loading">Carregando amigos...</div>'
 
   try {
@@ -1814,3 +1875,6 @@ async function showConversation(conversationId) {
     showAlert("Erro ao carregar conversa: " + error.message, "error")
   }
 }
+
+// Import Auth0
+import { createAuth0Client } from "@auth0/auth0-spa-js"
