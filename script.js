@@ -14,24 +14,41 @@ const funFacts = [
 ]
 
 // Configuração do Imgur
-const IMGUR_CLIENT_ID = "353a61ba6d157df[" // Substitua pela sua Client ID do Imgur
+const IMGUR_CLIENT_ID = "353a61ba6d157df" // ID do Imgur fornecido
 
-// Configuração do Auth0
+// Configuração do Auth0 - importada do arquivo auth0Config.js
 const auth0Config = {
-  domain: "vinifinn6.us.auth0.com", // Substitua pelo seu domínio Auth0
-  clientId: "OuKs70nxKcQCb43urRJ8LbiHpOcnm0Ui", // Substitua pelo seu Client ID Auth0
+  domain: "vinifinn6.us.auth0.com",
+  clientId: "OuKs70nxKcQCb43urRJ8LbiHpOcnm0Ui",
+  audience: "https://api.theslap.com",
   redirectUri: window.location.origin,
-  audience: "https://api.theslap.com", // Substitua pela sua API Audience
   scope: "openid profile email",
 }
 
-// Configuração do CockroachDB
+// Configuração do CockroachDB - importada do arquivo dbConfig.js
 const dbConfig = {
-  apiUrl: "https://the-slap.vercel.app/api", // Substitua pela sua URL da API
+  apiUrl: "https://the-slap.vercel.app/api",
+}
+
+// Função para exibir alertas
+function showAlert(message, type = "info") {
+  const alertContainer = document.getElementById("alert-container")
+  const alertElement = document.createElement("div")
+  alertElement.className = `alert alert-${type}`
+  alertElement.textContent = message
+
+  alertContainer.appendChild(alertElement)
+
+  // Remover o alerta após alguns segundos
+  setTimeout(() => {
+    alertElement.remove()
+  }, 5000)
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
+    console.log("Inicializando aplicação...")
+
     // Inicializar Auth0
     await initAuth0()
 
@@ -49,6 +66,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Função para inicializar o Auth0
 async function initAuth0() {
   try {
+    console.log("Inicializando Auth0...")
+    console.log("Auth0 Config:", auth0Config)
+
     // Verificar se o Auth0 está disponível
     if (typeof createAuth0Client !== "function") {
       console.error("Auth0 não está disponível. Verifique se o script do Auth0 foi carregado corretamente.")
@@ -66,17 +86,23 @@ async function initAuth0() {
       },
     })
 
+    console.log("Auth0 Client inicializado com sucesso")
+
     // Verificar se o usuário foi redirecionado após login
     if (location.search.includes("code=") && location.search.includes("state=")) {
+      console.log("Detectado código de autorização na URL, processando callback...")
       await auth0Client.handleRedirectCallback()
       window.history.replaceState({}, document.title, window.location.pathname)
+      console.log("Callback processado com sucesso")
     }
 
     // Verificar se o usuário já está autenticado
     const isAuthenticated = await auth0Client.isAuthenticated()
+    console.log("Usuário autenticado:", isAuthenticated)
 
     if (isAuthenticated) {
       currentUser = await auth0Client.getUser()
+      console.log("Usuário atual:", currentUser)
       await loadUserProfile()
       updateNotificationBadge()
       updateMessagesBadge()
@@ -94,37 +120,52 @@ async function initAuth0() {
 // Configurar ouvintes de eventos
 function setupEventListeners() {
   // Ouvinte para o seletor de humor personalizado
-  document.getElementById("post-mood").addEventListener("change", function () {
-    if (this.value === "custom") {
-      document.getElementById("custom-mood-container").classList.remove("hidden")
-    } else {
-      document.getElementById("custom-mood-container").classList.add("hidden")
-    }
-  })
+  const postMoodElement = document.getElementById("post-mood")
+  if (postMoodElement) {
+    postMoodElement.addEventListener("change", function () {
+      if (this.value === "custom") {
+        document.getElementById("custom-mood-container").classList.remove("hidden")
+      } else {
+        document.getElementById("custom-mood-container").classList.add("hidden")
+      }
+    })
+  }
 
   // Ouvinte para o botão de busca
-  document.getElementById("search-button").addEventListener("click", () => {
-    const query = document.getElementById("search-input").value.trim()
-    if (query) {
-      performSearch(query)
-    }
-  })
-
-  // Ouvinte para a tecla Enter no campo de busca
-  document.getElementById("search-input").addEventListener("keypress", function (e) {
-    if (e.key === "Enter") {
-      const query = this.value.trim()
+  const searchButtonElement = document.getElementById("search-button")
+  if (searchButtonElement) {
+    searchButtonElement.addEventListener("click", () => {
+      const query = document.getElementById("search-input").value.trim()
       if (query) {
         performSearch(query)
       }
-    }
-  })
+    })
+  }
+
+  // Ouvinte para a tecla Enter no campo de busca
+  const searchInputElement = document.getElementById("search-input")
+  if (searchInputElement) {
+    searchInputElement.addEventListener("keypress", function (e) {
+      if (e.key === "Enter") {
+        const query = this.value.trim()
+        if (query) {
+          performSearch(query)
+        }
+      }
+    })
+  }
 
   // Ouvinte para o contador de imagens no post
-  document.getElementById("post-images-container").addEventListener("change", updateImageCounter)
+  const postImagesContainerElement = document.getElementById("post-images-container")
+  if (postImagesContainerElement) {
+    postImagesContainerElement.addEventListener("change", updateImageCounter)
+  }
 
   // Ouvinte para adicionar mais imagens
-  document.getElementById("add-more-images").addEventListener("click", addImageInput)
+  const addMoreImagesElement = document.getElementById("add-more-images")
+  if (addMoreImagesElement) {
+    addMoreImagesElement.addEventListener("click", addImageInput)
+  }
 
   // Inicializar o primeiro input de imagem
   const firstImageInput = document.getElementById("post-image-1")
@@ -136,7 +177,10 @@ function setupEventListeners() {
 
   // Adicionar event listeners para os botões de login e registro
   document.querySelectorAll(".auth-button").forEach((button) => {
-    button.addEventListener("click", function () {
+    button.addEventListener("click", function (e) {
+      e.preventDefault() // Prevenir comportamento padrão do botão
+      console.log("Botão clicado:", this.textContent.trim())
+
       if (this.textContent.trim() === "Entrar") {
         login()
       } else if (this.textContent.trim() === "Registrar") {
@@ -149,6 +193,8 @@ function setupEventListeners() {
   document.querySelectorAll(".form-footer a").forEach((link) => {
     link.addEventListener("click", function (e) {
       e.preventDefault()
+      console.log("Link clicado:", this.textContent.trim())
+
       if (this.textContent.trim() === "Entre") {
         showLogin()
       } else if (this.textContent.trim() === "Registre-se") {
@@ -220,17 +266,22 @@ function updateImageCounter() {
   const container = document.getElementById("post-images-container")
   const inputs = container.querySelectorAll(".post-image-input")
   const addButton = document.getElementById("add-more-images")
+  const counterElement = document.getElementById("image-counter")
 
-  // Atualizar texto do contador
-  document.getElementById("image-counter").textContent = `${inputs.length}/2 imagens`
+  if (counterElement) {
+    // Atualizar texto do contador
+    counterElement.textContent = `${inputs.length}/2 imagens`
+  }
 
-  // Desabilitar botão se já tiver 2 imagens
-  if (inputs.length >= 2) {
-    addButton.disabled = true
-    addButton.classList.add("disabled")
-  } else {
-    addButton.disabled = false
-    addButton.classList.remove("disabled")
+  if (addButton) {
+    // Desabilitar botão se já tiver 2 imagens
+    if (inputs.length >= 2) {
+      addButton.disabled = true
+      addButton.classList.add("disabled")
+    } else {
+      addButton.disabled = false
+      addButton.classList.remove("disabled")
+    }
   }
 }
 
@@ -241,7 +292,9 @@ function previewImage(event, previewId) {
     const reader = new FileReader()
     reader.onload = (e) => {
       const previewElement = document.getElementById(previewId)
-      previewElement.innerHTML = `<img src="${e.target.result}" alt="Preview" class="image-preview-thumbnail">`
+      if (previewElement) {
+        previewElement.innerHTML = `<img src="${e.target.result}" alt="Preview" class="image-preview-thumbnail">`
+      }
     }
     reader.readAsDataURL(file)
   }
@@ -261,12 +314,14 @@ function showHome() {
 }
 
 function showLogin() {
+  console.log("Mostrando tela de login")
   hideAllSections()
   document.getElementById("login-form").classList.remove("hidden")
   document.getElementById("auth-buttons").classList.remove("hidden")
 }
 
 function showRegister() {
+  console.log("Mostrando tela de registro")
   hideAllSections()
   document.getElementById("register-form").classList.remove("hidden")
   document.getElementById("auth-buttons").classList.remove("hidden")
@@ -349,18 +404,33 @@ function hideAllSections() {
   ]
 
   sections.forEach((section) => {
-    document.getElementById(section).classList.add("hidden")
+    const element = document.getElementById(section)
+    if (element) {
+      element.classList.add("hidden")
+    } else {
+      console.warn(`Elemento com ID '${section}' não encontrado`)
+    }
   })
 }
 
 // Funções de autenticação com Auth0
 async function login() {
   try {
+    console.log("Iniciando processo de login...")
+
+    if (!auth0Client) {
+      console.error("Cliente Auth0 não inicializado")
+      showAlert("Erro ao fazer login: Cliente Auth0 não inicializado", "error")
+      return
+    }
+
     await auth0Client.loginWithRedirect({
       authorizationParams: {
         redirect_uri: window.location.origin,
       },
     })
+
+    console.log("Redirecionando para Auth0...")
   } catch (error) {
     console.error("Erro ao fazer login:", error)
     showAlert("Erro ao fazer login: " + error.message, "error")
@@ -369,12 +439,22 @@ async function login() {
 
 async function register() {
   try {
+    console.log("Iniciando processo de registro...")
+
+    if (!auth0Client) {
+      console.error("Cliente Auth0 não inicializado")
+      showAlert("Erro ao registrar: Cliente Auth0 não inicializado", "error")
+      return
+    }
+
     await auth0Client.loginWithRedirect({
       authorizationParams: {
         redirect_uri: window.location.origin,
         screen_hint: "signup",
       },
     })
+
+    console.log("Redirecionando para Auth0...")
   } catch (error) {
     console.error("Erro ao registrar:", error)
     showAlert("Erro ao registrar: " + error.message, "error")
@@ -383,6 +463,12 @@ async function register() {
 
 async function logout() {
   try {
+    if (!auth0Client) {
+      console.error("Cliente Auth0 não inicializado")
+      showAlert("Erro ao fazer logout: Cliente Auth0 não inicializado", "error")
+      return
+    }
+
     await auth0Client.logout({
       logoutParams: {
         returnTo: window.location.origin,
@@ -430,6 +516,7 @@ async function apiRequest(endpoint, method = "GET", data = null) {
       options.body = JSON.stringify(data)
     }
 
+    console.log(`Fazendo requisição ${method} para ${url}`)
     const response = await fetch(url, options)
 
     // Tratar erros HTTP
@@ -1578,8 +1665,10 @@ async function performSearch(query) {
 // Função para mostrar um fato divertido aleatório
 function showRandomFunFact() {
   const funFactElement = document.getElementById("fun-fact")
-  const randomIndex = Math.floor(Math.random() * funFacts.length)
-  funFactElement.textContent = funFacts[randomIndex]
+  if (funFactElement) {
+    const randomIndex = Math.floor(Math.random() * funFacts.length)
+    funFactElement.textContent = funFacts[randomIndex]
+  }
 }
 
 // Funções de modal
@@ -1625,23 +1714,27 @@ function createProfileEditForm() {
           <label for="edit-profile-school">Escola</label>
           <input type="text" id="edit-profile-school" value="${userData.school || ""}">
         </div>
-        <button id="save-profile-button" class="primary-button">Salvar Alterações</button>
+        <button id="save-profile-button" class="primary-button">Salvar</button>
       `
 
-      // Adicionar evento para pré-visualizar imagem
-      formElement.querySelector("#edit-profile-image").addEventListener("change", (event) => {
+      // Adicionar evento para pré-visualizar a imagem
+      const imageInput = formElement.querySelector("#edit-profile-image")
+      imageInput.addEventListener("change", (event) => {
         const file = event.target.files[0]
         if (file) {
           const reader = new FileReader()
           reader.onload = (e) => {
-            document.getElementById("edit-profile-preview").src = e.target.result
+            formElement.querySelector("#edit-profile-preview").src = e.target.result
           }
           reader.readAsDataURL(file)
         }
       })
 
-      // Adicionar evento para salvar alterações
-      formElement.querySelector("#save-profile-button").addEventListener("click", updateProfile)
+      // Adicionar evento para salvar o perfil
+      const saveButton = formElement.querySelector("#save-profile-button")
+      saveButton.addEventListener("click", () => {
+        saveProfileChanges()
+      })
     })
     .catch((error) => {
       console.error("Erro ao carregar dados do perfil:", error)
@@ -1652,39 +1745,46 @@ function createProfileEditForm() {
   return formElement
 }
 
-// Função para atualizar perfil
-async function updateProfile() {
-  const fileInput = document.getElementById("edit-profile-image")
-  const file = fileInput.files[0]
+// Função para salvar as mudanças no perfil
+async function saveProfileChanges() {
   const bio = document.getElementById("edit-profile-bio").value
   const school = document.getElementById("edit-profile-school").value
+  const imageInput = document.getElementById("edit-profile-image")
+  const file = imageInput.files[0]
 
   try {
+    let imageUrl = null
+
+    // Fazer upload da imagem para o Imgur, se houver
+    if (file) {
+      showAlert("Fazendo upload da imagem...", "info")
+      imageUrl = await uploadToImgur(file)
+    }
+
+    // Atualizar o perfil do usuário
+    const userId = currentUser.sub
     const updateData = {
       bio: bio,
       school: school,
     }
 
-    // Fazer upload da imagem para o Imgur, se houver
-    if (file) {
-      showAlert("Fazendo upload da imagem...", "info")
-      const imageUrl = await uploadToImgur(file)
+    if (imageUrl) {
       updateData.avatar = imageUrl
     }
 
-    // Atualizar o perfil do usuário
-    await apiRequest(`users/${currentUser.sub}`, "PUT", updateData)
+    await apiRequest(`users/${userId}`, "PUT", updateData)
 
     showAlert("Perfil atualizado com sucesso!", "success")
     closeModal()
     await loadUserProfile()
+    showHome()
   } catch (error) {
     console.error("Erro ao atualizar perfil:", error)
     showAlert("Erro ao atualizar perfil: " + error.message, "error")
   }
 }
 
-// Função para criar visualização de todos os amigos
+// Função para criar a visualização de todos os amigos
 function createAllFriendsView() {
   const viewElement = document.createElement("div")
   viewElement.className = "all-friends-view"
@@ -1692,49 +1792,38 @@ function createAllFriendsView() {
 
   // Buscar lista de amigos do usuário
   apiRequest(`users/${currentUser.sub}`)
-    .then(async (userData) => {
+    .then((userData) => {
       const friends = userData.friends || []
 
       if (friends.length === 0) {
-        viewElement.innerHTML =
-          '<div class="empty-state">Você ainda não tem amigos. Explore perfis para encontrar amigos!</div>'
+        viewElement.innerHTML = '<div class="empty-state">Você ainda não tem amigos.</div>'
         return
       }
 
-      // Criar grid de amigos
-      const friendsGrid = document.createElement("div")
-      friendsGrid.className = "friends-grid-full"
+      viewElement.innerHTML = ""
 
       // Buscar informações de cada amigo
-      for (const friendId of friends) {
-        try {
-          const friendData = await apiRequest(`users/${friendId}`)
+      friends.forEach((friendId) => {
+        apiRequest(`users/${friendId}`)
+          .then((friendData) => {
+            const friendElement = document.createElement("div")
+            friendElement.className = "friend-item"
+            friendElement.innerHTML = `
+              <img src="${friendData.avatar || "https://i.imgur.com/oPj4A8u.jpg"}" alt="${friendData.username}" class="friend-avatar">
+              <div class="friend-name">${friendData.username}</div>
+            `
 
-          const friendElement = document.createElement("div")
-          friendElement.className = "friend-item-full"
-          friendElement.innerHTML = `
-            <img src="${friendData.avatar || "https://i.imgur.com/oPj4A8u.jpg"}" alt="${friendData.username}" class="friend-avatar-full">
-            <div class="friend-info">
-              <div class="friend-name-full">${friendData.username}</div>
-              <div class="friend-bio">${friendData.bio || "Sem biografia"}</div>
-              <button class="secondary-button">Ver Perfil</button>
-            </div>
-          `
+            // Adicionar evento de clique para ver o perfil do amigo
+            friendElement.addEventListener("click", () => {
+              showUserProfile(friendId)
+            })
 
-          // Adicionar evento de clique para ver o perfil do amigo
-          friendElement.querySelector("button").addEventListener("click", () => {
-            closeModal()
-            showUserProfile(friendId)
+            viewElement.appendChild(friendElement)
           })
-
-          friendsGrid.appendChild(friendElement)
-        } catch (error) {
-          console.error(`Erro ao carregar amigo ${friendId}:`, error)
-        }
-      }
-
-      viewElement.innerHTML = ""
-      viewElement.appendChild(friendsGrid)
+          .catch((error) => {
+            console.error(`Erro ao carregar amigo ${friendId}:`, error)
+          })
+      })
     })
     .catch((error) => {
       console.error("Erro ao carregar amigos:", error)
@@ -1744,28 +1833,31 @@ function createAllFriendsView() {
   return viewElement
 }
 
-// Função para mostrar alerta
-function showAlert(message, type = "info") {
-  // Criar elemento de alerta
-  const alertElement = document.createElement("div")
-  alertElement.className = `alert alert-${type}`
-  alertElement.textContent = message
+// Função para mostrar um post específico
+async function showPost(postId) {
+  try {
+    // Buscar o post
+    const post = await apiRequest(`posts/${postId}`)
 
-  // Adicionar ao corpo do documento
-  document.body.appendChild(alertElement)
+    // Criar conteúdo do modal
+    const modalContent = document.createElement("div")
+    modalContent.className = "post-container"
 
-  // Remover após alguns segundos
-  setTimeout(() => {
-    alertElement.classList.add("alert-hide")
-    setTimeout(() => {
-      document.body.removeChild(alertElement)
-    }, 300)
-  }, 3000)
+    const postElement = createPostElement(post)
+    modalContent.appendChild(postElement)
+
+    // Mostrar modal
+    showModal("Post", modalContent)
+  } catch (error) {
+    console.error("Erro ao carregar post:", error)
+    showAlert("Erro ao carregar post: " + error.message, "error")
+  }
 }
 
-// Função auxiliar para buscar usuário por nome de usuário
+// Função para mostrar o perfil de um usuário pelo nome de usuário
 async function showUserProfileByUsername(username) {
   try {
+    // Buscar o usuário pelo nome de usuário
     const users = await apiRequest(`users/search?query=${encodeURIComponent(username)}`)
 
     if (users.length === 0) {
@@ -1773,100 +1865,28 @@ async function showUserProfileByUsername(username) {
       return
     }
 
-    // Encontrar o usuário com o nome de usuário exato
-    const user = users.find((u) => u.username === username)
-
-    if (user) {
-      showUserProfile(user.id)
-    } else {
-      // Se não encontrar o usuário exato, mostrar o primeiro resultado
-      showUserProfile(users[0].id)
-    }
+    // Mostrar o perfil do primeiro usuário encontrado
+    showUserProfile(users[0].id)
   } catch (error) {
-    console.error("Erro ao buscar usuário:", error)
-    showAlert("Erro ao buscar usuário: " + error.message, "error")
+    console.error("Erro ao carregar usuário:", error)
+    showAlert("Erro ao carregar usuário: " + error.message, "error")
   }
 }
 
-// Função para mostrar um post específico
-async function showPost(postId) {
-  try {
-    const post = await apiRequest(`posts/${postId}`)
-
-    // Criar conteúdo do modal
-    const modalContent = document.createElement("div")
-    modalContent.className = "post-detail"
-
-    const postElement = createPostElement(post)
-    modalContent.appendChild(postElement)
-
-    // Adicionar seção de comentários
-    const commentsSection = document.createElement("div")
-    commentsSection.className = "comments-section"
-    commentsSection.innerHTML = "<h4>Comentários</h4>"
-
-    const commentsList = document.createElement("div")
-    commentsList.className = "comments-list"
-
-    const comments = post.comments || []
-
-    if (comments.length === 0) {
-      commentsList.innerHTML = '<div class="empty-state">Nenhum comentário ainda. Seja o primeiro a comentar!</div>'
-    } else {
-      comments.forEach((comment) => {
-        const commentElement = document.createElement("div")
-        commentElement.className = "comment-item"
-        commentElement.innerHTML = `
-          <div class="comment-header">
-            <img src="${comment.userAvatar || "https://i.imgur.com/oPj4A8u.jpg"}" alt="Avatar" class="comment-avatar">
-            <div class="comment-user">${comment.username}</div>
-          </div>
-          <div class="comment-content">${comment.content}</div>
-          <div class="comment-time">${new Date(comment.timestamp).toLocaleString()}</div>
-        `
-        commentsList.appendChild(commentElement)
-      })
-    }
-
-    commentsSection.appendChild(commentsList)
-
-    // Adicionar formulário de comentário
-    const commentForm = document.createElement("div")
-    commentForm.className = "comment-form"
-    commentForm.innerHTML = `
-      <textarea id="comment-input" placeholder="Escreva um comentário..."></textarea>
-      <button id="submit-comment" class="primary-button">Comentar</button>
-    `
-
-    commentsSection.appendChild(commentForm)
-    modalContent.appendChild(commentsSection)
-
-    // Mostrar modal
-    showModal("Post", modalContent)
-
-    // Adicionar evento ao botão de comentar
-    document.getElementById("submit-comment").addEventListener("click", () => {
-      addComment(postId)
-    })
-  } catch (error) {
-    console.error("Erro ao carregar post:", error)
-    showAlert("Erro ao carregar post: " + error.message, "error")
-  }
-}
-
-// Função para mostrar conversa específica
+// Função para mostrar uma conversa específica
 async function showConversation(conversationId) {
-  showMessages()
-
   try {
+    // Buscar a conversa
     const conversation = await apiRequest(`conversations/${conversationId}`)
 
+    // Encontrar o outro participante
     const otherUserId = conversation.participants.find((id) => id !== currentUser.sub)
 
     // Buscar informações do outro usuário
     const userData = await apiRequest(`users/${otherUserId}`)
 
-    // Abrir conversa
+    // Abrir a conversa
+    showMessages()
     setTimeout(() => {
       openConversation(conversationId, otherUserId, userData.username, userData.avatar)
     }, 500)
@@ -1875,6 +1895,3 @@ async function showConversation(conversationId) {
     showAlert("Erro ao carregar conversa: " + error.message, "error")
   }
 }
-
-// Import Auth0
-import { createAuth0Client } from "@auth0/auth0-spa-js"
