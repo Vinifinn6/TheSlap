@@ -122,8 +122,8 @@ app.get("/api/users", checkJwt, async (req, res) => {
 app.get("/api/users/popular", checkJwt, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM users
-      ORDER BY array_length(friends, 1) DESC NULLS LAST
+      SELECT * FROM users 
+      ORDER BY array_length(friends, 1) DESC NULLS LAST 
       LIMIT 6
     `)
     res.json(result.rows)
@@ -138,8 +138,8 @@ app.get("/api/users/search", checkJwt, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT * FROM users
-      WHERE username ILIKE $1
+      SELECT * FROM users 
+      WHERE username ILIKE $1 
       ORDER BY username
       LIMIT 10
     `,
@@ -302,7 +302,7 @@ app.get("/api/posts", checkJwt, async (req, res) => {
       // Buscar posts de um usuário específico
       result = await pool.query(
         `
-        SELECT * FROM posts
+        SELECT * FROM posts 
         WHERE user_id = $1
         ORDER BY created_at DESC
         LIMIT 20
@@ -314,7 +314,7 @@ app.get("/api/posts", checkJwt, async (req, res) => {
       const userIdArray = userIds.split(",")
       result = await pool.query(
         `
-        SELECT * FROM posts
+        SELECT * FROM posts 
         WHERE user_id = ANY($1)
         ORDER BY created_at DESC
         LIMIT 20
@@ -324,7 +324,7 @@ app.get("/api/posts", checkJwt, async (req, res) => {
     } else {
       // Buscar todos os posts
       result = await pool.query(`
-        SELECT * FROM posts
+        SELECT * FROM posts 
         ORDER BY created_at DESC
         LIMIT 20
       `)
@@ -459,7 +459,7 @@ app.get("/api/notifications", checkJwt, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT * FROM notifications
+      SELECT * FROM notifications 
       WHERE user_id = $1
       ORDER BY created_at DESC
       LIMIT 20
@@ -530,7 +530,7 @@ app.get("/api/notifications/unread", checkJwt, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT COUNT(*) FROM notifications
+      SELECT COUNT(*) FROM notifications 
       WHERE user_id = $1 AND read = FALSE
     `,
       [userId],
@@ -555,7 +555,7 @@ app.get("/api/conversations", checkJwt, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT * FROM conversations
+      SELECT * FROM conversations 
       WHERE $1 = ANY(participants)
       ORDER BY last_message_time DESC
     `,
@@ -671,7 +671,7 @@ app.get("/api/conversations/:id/messages", checkJwt, async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT * FROM messages
+      SELECT * FROM messages 
       WHERE conversation_id = $1
       ORDER BY created_at
     `,
@@ -773,7 +773,7 @@ app.get("/api/conversations/unread", checkJwt, async (req, res) => {
     // Buscar todas as conversas do usuário
     const conversationsResult = await pool.query(
       `
-      SELECT id FROM conversations
+      SELECT id FROM conversations 
       WHERE $1 = ANY(participants)
     `,
       [userId],
@@ -788,7 +788,7 @@ app.get("/api/conversations/unread", checkJwt, async (req, res) => {
     // Contar mensagens não lidas
     const result = await pool.query(
       `
-      SELECT COUNT(*) FROM messages
+      SELECT COUNT(*) FROM messages 
       WHERE conversation_id = ANY($1) AND sender_id != $2 AND read = FALSE
     `,
       [conversationIds, userId],
