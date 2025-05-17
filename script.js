@@ -143,24 +143,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 })
 
-// Função para inicializar o Auth0
+// Atualizar initAuth0
 async function initAuth0() {
   try {
     console.log("Inicializando Auth0...")
-    console.log("Auth0 Config:", auth0Config)
 
-    // Verificar se o Auth0 está disponível
-    if (typeof createAuth0Client !== "function") {
-      console.error("Auth0 não está disponível. Verifique se o script do Auth0 foi carregado corretamente.")
-      showAlert("Erro ao inicializar autenticação. Por favor, recarregue a página.", "error")
-      return
+    if (!window.createAuth0Client) {
+      console.error("Auth0 SDK não carregado. Recarregando página...")
+      return window.location.reload()
     }
 
     auth0Client = await createAuth0Client({
       domain: auth0Config.domain,
       clientId: auth0Config.clientId,
       authorizationParams: {
-        redirect_uri: auth0Config.redirectUri,
+        redirect_uri: window.location.origin,
         audience: auth0Config.audience,
         scope: auth0Config.scope,
       },
@@ -258,29 +255,15 @@ function setupEventListeners() {
   }
 
   // Adicionar event listeners para os botões de login e registro diretamente
-  const loginButton = document.querySelector(".auth-button:nth-child(1)")
-  if (loginButton) {
-    console.log("Login button found:", loginButton)
-    loginButton.addEventListener("click", (e) => {
-      e.preventDefault()
-      console.log("Login button clicked")
-      login()
-    })
-  } else {
-    console.warn("Login button not found")
-  }
+  document.getElementById("login-button").addEventListener("click", (e) => {
+  e.preventDefault()
+  login()
+})
 
-  const registerButton = document.querySelector(".auth-button:nth-child(2)")
-  if (registerButton) {
-    console.log("Register button found:", registerButton)
-    registerButton.addEventListener("click", (e) => {
-      e.preventDefault()
-      console.log("Register button clicked")
-      register()
-    })
-  } else {
-    console.warn("Register button not found")
-  }
+document.getElementById("register-button").addEventListener("click", (e) => {
+  e.preventDefault()
+  register()
+})
 
   // Adicionar event listeners para os links de login e registro
   const loginLink = document.querySelector(".form-footer a[href='#'][onclick='showLogin()']")
