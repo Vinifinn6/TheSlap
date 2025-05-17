@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TheSlap - O Que É Quente no Farias Brito</title>
+  <title>TheSlap - O Que É Quente no FB</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
 </head>
 <body>
+  <div id="alert-container" class="alert-container"></div>
   <div class="site-container">
     <header>
       <div class="header-top">
@@ -235,7 +236,7 @@
           <div class="profile-content">
             <h3 class="section-title">POSTS DE <span id="profile-posts-title">USUÁRIO</span></h3>
             <div id="profile-posts" class="posts-list">
-              <!-- Posts do usuário ser��o adicionados aqui -->
+              <!-- Posts do usuário serão adicionados aqui -->
             </div>
           </div>
         </div>
@@ -284,7 +285,7 @@
   </div>
 
   <!-- Auth0 -->
-  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js" defer></script>
   
   <!-- Configurações -->
   <script src="auth0Config.js"></script>
