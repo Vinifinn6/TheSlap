@@ -32,7 +32,18 @@ const dbConfig = {
 
 // Função para exibir alertas
 function showAlert(message, type = "info") {
-  const alertContainer = document.getElementById("alert-container")
+  console.log(`Alert: ${message} (${type})`)
+
+  let alertContainer = document.getElementById("alert-container")
+
+  // Create alert container if it doesn't exist
+  if (!alertContainer) {
+    alertContainer = document.createElement("div")
+    alertContainer.id = "alert-container"
+    alertContainer.className = "alert-container"
+    document.body.insertBefore(alertContainer, document.body.firstChild)
+  }
+
   const alertElement = document.createElement("div")
   alertElement.className = `alert alert-${type}`
   alertElement.textContent = message
@@ -41,13 +52,82 @@ function showAlert(message, type = "info") {
 
   // Remover o alerta após alguns segundos
   setTimeout(() => {
-    alertElement.remove()
+    alertElement.classList.add("alert-hide")
+    setTimeout(() => {
+      if (alertElement.parentNode === alertContainer) {
+        alertContainer.removeChild(alertElement)
+      }
+    }, 300)
   }, 5000)
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    console.log("Inicializando aplicação...")
+    console.log("DOM carregado, inicializando aplicação...")
+
+    // Add CSS for alerts if not already in style.css
+    const alertStyles = document.createElement("style")
+    alertStyles.textContent = `
+      .alert-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .alert {
+        padding: 15px 20px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        animation: slideIn 0.3s ease-out;
+      }
+      .alert-info {
+        background-color: #2196F3;
+      }
+      .alert-success {
+        background-color: #4CAF50;
+      }
+      .alert-error {
+        background-color: #F44336;
+      }
+      .alert-hide {
+        animation: slideOut 0.3s ease-in forwards;
+      }
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+    `
+    document.head.appendChild(alertStyles)
+
+    // Verificar se o script do Auth0 foi carregado
+    if (typeof createAuth0Client !== "function") {
+      console.error("Auth0 não está disponível. Tentando carregar o script novamente...")
+
+      // Try to load Auth0 script dynamically
+      const script = document.createElement("script")
+      script.src = "https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"
+      script.onload = async () => {
+        console.log("Auth0 script carregado com sucesso!")
+        await initAuth0()
+        setupEventListeners()
+        showRandomFunFact()
+      }
+      script.onerror = () => {
+        console.error("Falha ao carregar o script do Auth0")
+        showAlert("Erro ao carregar o script de autenticação. Por favor, recarregue a página.", "error")
+      }
+      document.body.appendChild(script)
+      return
+    }
 
     // Inicializar Auth0
     await initAuth0()
@@ -119,6 +199,8 @@ async function initAuth0() {
 
 // Configurar ouvintes de eventos
 function setupEventListeners() {
+  console.log("Configurando event listeners...")
+
   // Ouvinte para o seletor de humor personalizado
   const postMoodElement = document.getElementById("post-mood")
   if (postMoodElement) {
@@ -175,33 +257,49 @@ function setupEventListeners() {
     })
   }
 
-  // Adicionar event listeners para os botões de login e registro
-  document.querySelectorAll(".auth-button").forEach((button) => {
-    button.addEventListener("click", function (e) {
-      e.preventDefault() // Prevenir comportamento padrão do botão
-      console.log("Botão clicado:", this.textContent.trim())
-
-      if (this.textContent.trim() === "Entrar") {
-        login()
-      } else if (this.textContent.trim() === "Registrar") {
-        register()
-      }
+  // Adicionar event listeners para os botões de login e registro diretamente
+  const loginButton = document.querySelector(".auth-button:nth-child(1)")
+  if (loginButton) {
+    console.log("Login button found:", loginButton)
+    loginButton.addEventListener("click", (e) => {
+      e.preventDefault()
+      console.log("Login button clicked")
+      login()
     })
-  })
+  } else {
+    console.warn("Login button not found")
+  }
+
+  const registerButton = document.querySelector(".auth-button:nth-child(2)")
+  if (registerButton) {
+    console.log("Register button found:", registerButton)
+    registerButton.addEventListener("click", (e) => {
+      e.preventDefault()
+      console.log("Register button clicked")
+      register()
+    })
+  } else {
+    console.warn("Register button not found")
+  }
 
   // Adicionar event listeners para os links de login e registro
-  document.querySelectorAll(".form-footer a").forEach((link) => {
-    link.addEventListener("click", function (e) {
+  const loginLink = document.querySelector(".form-footer a[href='#'][onclick='showLogin()']")
+  if (loginLink) {
+    loginLink.addEventListener("click", (e) => {
       e.preventDefault()
-      console.log("Link clicado:", this.textContent.trim())
-
-      if (this.textContent.trim() === "Entre") {
-        showLogin()
-      } else if (this.textContent.trim() === "Registre-se") {
-        showRegister()
-      }
+      console.log("Login link clicked")
+      showLogin()
     })
-  })
+  }
+
+  const registerLink = document.querySelector(".form-footer a[href='#'][onclick='register()']")
+  if (registerLink) {
+    registerLink.addEventListener("click", (e) => {
+      e.preventDefault()
+      console.log("Register link clicked")
+      showRegister()
+    })
+  }
 }
 
 // Função para fazer upload de imagem para o Imgur
@@ -420,17 +518,23 @@ async function login() {
 
     if (!auth0Client) {
       console.error("Cliente Auth0 não inicializado")
-      showAlert("Erro ao fazer login: Cliente Auth0 não inicializado", "error")
-      return
+      showAlert("Erro ao fazer login: Cliente Auth0 não inicializado. Recarregando a página...", "error")
+
+      // Try to initialize Auth0 again
+      await initAuth0()
+
+      if (!auth0Client) {
+        showAlert("Falha ao inicializar Auth0. Por favor, recarregue a página manualmente.", "error")
+        return
+      }
     }
 
+    console.log("Redirecionando para Auth0...")
     await auth0Client.loginWithRedirect({
       authorizationParams: {
         redirect_uri: window.location.origin,
       },
     })
-
-    console.log("Redirecionando para Auth0...")
   } catch (error) {
     console.error("Erro ao fazer login:", error)
     showAlert("Erro ao fazer login: " + error.message, "error")
@@ -443,18 +547,24 @@ async function register() {
 
     if (!auth0Client) {
       console.error("Cliente Auth0 não inicializado")
-      showAlert("Erro ao registrar: Cliente Auth0 não inicializado", "error")
-      return
+      showAlert("Erro ao registrar: Cliente Auth0 não inicializado. Recarregando a página...", "error")
+
+      // Try to initialize Auth0 again
+      await initAuth0()
+
+      if (!auth0Client) {
+        showAlert("Falha ao inicializar Auth0. Por favor, recarregue a página manualmente.", "error")
+        return
+      }
     }
 
+    console.log("Redirecionando para Auth0 (registro)...")
     await auth0Client.loginWithRedirect({
       authorizationParams: {
         redirect_uri: window.location.origin,
         screen_hint: "signup",
       },
     })
-
-    console.log("Redirecionando para Auth0...")
   } catch (error) {
     console.error("Erro ao registrar:", error)
     showAlert("Erro ao registrar: " + error.message, "error")
