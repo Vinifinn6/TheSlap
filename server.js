@@ -83,7 +83,40 @@ async function initDatabase() {
     client.release()
   }
 }
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'Servidor operacional', timestamp: new Date() })
+})
 
+// Rota para obter usuário
+app.get('/api/users/:id', checkJwt, async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const result = await client.query('SELECT * FROM users WHERE id = $1', [req.params.id])
+    res.json(result.rows[0] || { error: 'Usuário não encontrado' })
+  } catch (error) {
+    res.status(500).json({ error: 'Erro no servidor' })
+  } finally {
+    client.release()
+  }
+})
+
+// Rota para criar usuário
+app.post('/api/users', checkJwt, async (req, res) => {
+  const { id, username, email, avatar, bio, school } = req.body
+  const client = await pool.connect()
+  try {
+    await client.query(
+      `INSERT INTO users (id, username, email, avatar, bio, school)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, username, email, avatar || '', bio || '', school || '']
+    )
+    res.status(201).json({ message: 'Usuário criado com sucesso' })
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar usuário' })
+  } finally {
+    client.release()
+  }
+})
 // Iniciar o servidor
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`)
