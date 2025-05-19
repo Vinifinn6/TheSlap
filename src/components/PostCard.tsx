@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { FaHeart, FaComment, FaTrash } from 'react-icons/fa';
 import CommentForm from './CommentForm';
+import CommentList from './CommentList';
 
-// Tipos
 interface User {
   id: string;
   username: string;
@@ -23,199 +22,167 @@ interface Comment {
   images: string[];
 }
 
-interface Post {
+interface PostCardProps {
   id: string;
   content: string;
   user: User;
   createdAt: string;
   images: string[];
-  moodText: string;
-  moodEmoji: string;
+  moodText?: string;
+  moodEmoji?: string;
   comments: Comment[];
   likesCount: number;
-}
-
-interface PostCardProps {
-  post: Post;
-  currentUserId?: string;
-  onLike: (postId: string) => void;
-  onDelete: (postId: string) => void;
-  onCommentSubmit: (comment: {
-    content: string;
-    images: File[];
-    mentions: string[];
-    postId: string;
-  }) => Promise<boolean>;
-  onCommentDelete: (commentId: string) => void;
+  onLike?: (id: string) => Promise<void>;
+  onComment?: (postId: string, comment: { content: string; images: File[] }) => Promise<boolean>;
+  onDelete?: (id: string) => Promise<void>;
 }
 
 const PostCard: React.FC<PostCardProps> = ({
-  post,
-  currentUserId,
+  id,
+  content,
+  user,
+  createdAt,
+  images,
+  moodText,
+  moodEmoji,
+  comments,
+  likesCount,
   onLike,
-  onDelete,
-  onCommentSubmit,
-  onCommentDelete
+  onComment,
+  onDelete
 }) => {
-  const { user } = useUser();
+  const { user: currentUser } = useUser();
   const [showComments, setShowComments] = useState(false);
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  
-  const isPostOwner = currentUserId === post.user.id;
-  
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return format(date, "d 'de' MMMM 'às' HH:mm", { locale: ptBR });
-    } catch (error) {
-      return dateString;
-    }
-  };
-  
-  const handleCommentSubmit = async (comment: {
-    content: string;
-    images: File[];
-    mentions: string[];
-  }) => {
-    if (!user) return false;
+  const [isLiking, setIsLiking] = useState(false);
+  const [localLikesCount, setLocalLikesCount] = useState(likesCount);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const formattedDate = new Date(createdAt).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const handleLike = async () => {
+    if (!onLike || isLiking) return;
     
-    setIsSubmittingComment(true);
-    
+    setIsLiking(true);
     try {
-      const success = await onCommentSubmit({
-        ...comment,
-        postId: post.id
-      });
-      
-      if (success) {
-        setShowComments(true);
-      }
-      
-      return success;
+      await onLike(id);
+      setLocalLikesCount(prev => prev + 1);
     } catch (error) {
-      console.error('Erro ao enviar comentário:', error);
-      return false;
+      console.error('Erro ao curtir post:', error);
     } finally {
-      setIsSubmittingComment(false);
+      setIsLiking(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (!onDelete || isDeleting) return;
+    
+    if (!confirm('Tem certeza que deseja excluir este post?')) return;
+    
+    setIsDeleting(true);
+    try {
+      await onDelete(id);
+    } catch (error) {
+      console.error('Erro ao excluir post:', error);
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleComments = () => {
+    setShowComments(!showComments);
+  };
+
   return (
-    <div className="post-card">
-      <div className="post-header">
-        <img 
-          src={post.user.profileImage || 'https://via.placeholder.com/50'} 
-          alt={post.user.displayName} 
-          className="post-avatar"
-        />
-        <div className="post-user-info">
-          <div className="post-username">{post.user.displayName}</div>
-          <div className="post-date">{formatDate(post.createdAt)}</div>
+    <div className="bg-white/90 rounded-lg p-4 shadow-md mb-6">
+      {/* Cabeçalho do post */}
+      <div className="flex items-center mb-3">
+        <Link href={`/profile/${user.username}`} className="flex items-center">
+          <Image 
+            src={user.profileImage || "https://via.placeholder.com/50"} 
+            alt={user.displayName} 
+            width={50} 
+            height={50} 
+            className="rounded-full mr-3"
+          />
+        </Link>
+        
+        <div className="flex-1">
+          <Link href={`/profile/${user.username}`} className="font-bold text-blue-900 hover:underline">
+            {user.displayName}
+          </Link>
+          <div className="text-xs text-gray-500">
+            {formattedDate}
+            {moodText && (
+              <span className="ml-2">
+                Humor: {moodEmoji} {moodText}
+              </span>
+            )}
+          </div>
         </div>
         
-        {isPostOwner && (
-          <button 
-            onClick={() => onDelete(post.id)}
-            className="text-gray-500 hover:text-red-500"
+        {currentUser && currentUser.sub === user.id && (
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="text-red-500 hover:text-red-700"
             aria-label="Excluir post"
           >
-            <FaTrash />
+            {isDeleting ? '...' : '🗑️'}
           </button>
         )}
       </div>
       
-      <div className="post-content">
-        {post.content}
+      {/* Conteúdo do post */}
+      <div className="mb-4">
+        <p className="text-gray-800 whitespace-pre-line">{content}</p>
       </div>
       
-      {post.images.length > 0 && (
-        <div className="post-images">
-          {post.images.map((image, index) => (
-            <img 
-              key={index} 
-              src={image} 
-              alt={`Imagem ${index + 1} do post`} 
-              className="post-image"
-            />
+      {/* Imagens do post */}
+      {images && images.length > 0 && (
+        <div className={`mb-4 grid ${images.length > 1 ? 'grid-cols-2 gap-2' : 'grid-cols-1'}`}>
+          {images.map((image, index) => (
+            <div key={index} className="relative aspect-square">
+              <img
+                src={image}
+                alt={`Imagem ${index + 1} do post`}
+                className="w-full h-full object-cover rounded-lg"
+              />
+            </div>
           ))}
         </div>
       )}
       
-      {post.moodText && (
-        <div className="post-mood">
-          Humor = {post.moodEmoji} {post.moodText}
-        </div>
-      )}
-      
-      <div className="flex items-center mt-4 space-x-4">
-        <button 
-          onClick={() => onLike(post.id)}
+      {/* Ações do post */}
+      <div className="flex items-center justify-between border-t border-b border-gray-200 py-2 mb-3">
+        <button
+          onClick={handleLike}
+          disabled={isLiking}
           className="flex items-center text-gray-600 hover:text-red-500"
         >
-          <FaHeart className="mr-1" />
-          <span>{post.likesCount}</span>
+          ❤️ {localLikesCount}
         </button>
         
-        <button 
-          onClick={() => setShowComments(!showComments)}
+        <button
+          onClick={toggleComments}
           className="flex items-center text-gray-600 hover:text-blue-500"
         >
-          <FaComment className="mr-1" />
-          <span>{post.comments.length}</span>
+          💬 {comments.length}
         </button>
       </div>
       
+      {/* Seção de comentários */}
       {showComments && (
-        <div className="comment-section">
-          {post.comments.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {post.comments.map(comment => (
-                <div key={comment.id} className="comment">
-                  <div className="comment-header">
-                    <img 
-                      src={comment.user.profileImage || 'https://via.placeholder.com/30'} 
-                      alt={comment.user.displayName} 
-                      className="comment-avatar"
-                    />
-                    <div className="comment-username">{comment.user.displayName}</div>
-                    <div className="ml-auto text-xs text-gray-500">
-                      {formatDate(comment.createdAt)}
-                    </div>
-                    
-                    {currentUserId === comment.user.id && (
-                      <button 
-                        onClick={() => onCommentDelete(comment.id)}
-                        className="ml-2 text-gray-500 hover:text-red-500 text-xs"
-                        aria-label="Excluir comentário"
-                      >
-                        <FaTrash />
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="mt-1">{comment.content}</div>
-                  
-                  {comment.images.length > 0 && (
-                    <div className="flex gap-2 mt-2">
-                      {comment.images.map((image, index) => (
-                        <img 
-                          key={index} 
-                          src={image} 
-                          alt={`Imagem ${index + 1} do comentário`} 
-                          className="w-16 h-16 object-cover rounded"
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        <div className="mt-4">
+          {currentUser && onComment && (
+            <CommentForm postId={id} onSubmit={onComment} />
           )}
           
-          <CommentForm 
-            onSubmit={handleCommentSubmit}
-            isSubmitting={isSubmittingComment}
-          />
+          <CommentList comments={comments} />
         </div>
       )}
     </div>
