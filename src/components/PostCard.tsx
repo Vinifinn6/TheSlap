@@ -1,44 +1,52 @@
 "use client";
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
+import { useUser } from '@auth0/nextjs-auth0/client';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FaComment, FaHeart, FaTrash, FaPencilAlt } from 'react-icons/fa';
-import CommentList from './CommentList';
+import { FaHeart, FaComment, FaTrash } from 'react-icons/fa';
 import CommentForm from './CommentForm';
 
 // Tipos
+interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  profileImage: string;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  user: User;
+  createdAt: string;
+  images: string[];
+}
+
 interface Post {
   id: string;
   content: string;
-  user: {
-    id: string;
-    username: string;
-    displayName: string;
-    profileImage: string;
-  };
+  user: User;
   createdAt: string;
   images: string[];
   moodText: string;
   moodEmoji: string;
-  comments: any[];
+  comments: Comment[];
   likesCount: number;
 }
 
 interface PostCardProps {
   post: Post;
   currentUserId?: string;
-  onLike?: (postId: string) => void;
-  onDelete?: (postId: string) => void;
-  onEdit?: (postId: string) => void;
-  onCommentSubmit?: (comment: {
+  onLike: (postId: string) => void;
+  onDelete: (postId: string) => void;
+  onCommentSubmit: (comment: {
     content: string;
     images: File[];
     mentions: string[];
     postId: string;
-  }) => Promise<void>;
-  onCommentDelete?: (commentId: string) => void;
+  }) => Promise<boolean>;
+  onCommentDelete: (commentId: string) => void;
 }
 
 const PostCard: React.FC<PostCardProps> = ({
@@ -46,73 +54,73 @@ const PostCard: React.FC<PostCardProps> = ({
   currentUserId,
   onLike,
   onDelete,
-  onEdit,
   onCommentSubmit,
   onCommentDelete
 }) => {
+  const { user } = useUser();
   const [showComments, setShowComments] = useState(false);
-  const isAuthor = currentUserId === post.user.id;
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   
-  const toggleComments = () => {
-    setShowComments(!showComments);
+  const isPostOwner = currentUserId === post.user.id;
+  
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return format(date, "d 'de' MMMM 'às' HH:mm", { locale: ptBR });
+    } catch (error) {
+      return dateString;
+    }
   };
   
   const handleCommentSubmit = async (comment: {
     content: string;
     images: File[];
     mentions: string[];
-    postId: string;
   }) => {
-    if (onCommentSubmit) {
-      await onCommentSubmit(comment);
-      // Garantir que os comentários estejam visíveis após enviar um novo
-      setShowComments(true);
+    if (!user) return false;
+    
+    setIsSubmittingComment(true);
+    
+    try {
+      const success = await onCommentSubmit({
+        ...comment,
+        postId: post.id
+      });
+      
+      if (success) {
+        setShowComments(true);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Erro ao enviar comentário:', error);
+      return false;
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
   return (
     <div className="post-card">
       <div className="post-header">
-        <Link href={`/profile/${post.user.username}`}>
-          <img 
-            src={post.user.profileImage || 'https://via.placeholder.com/50'} 
-            alt={post.user.displayName} 
-            className="post-avatar"
-          />
-        </Link>
-        
+        <img 
+          src={post.user.profileImage || 'https://via.placeholder.com/50'} 
+          alt={post.user.displayName} 
+          className="post-avatar"
+        />
         <div className="post-user-info">
-          <Link href={`/profile/${post.user.username}`} className="post-username">
-            {post.user.displayName}
-          </Link>
-          <div className="post-date">
-            {formatDistanceToNow(new Date(post.createdAt), { 
-              addSuffix: true,
-              locale: ptBR
-            })}
-          </div>
+          <div className="post-username">{post.user.displayName}</div>
+          <div className="post-date">{formatDate(post.createdAt)}</div>
         </div>
         
-        {isAuthor && (
-          <div className="flex gap-2">
-            {onEdit && (
-              <button 
-                onClick={() => onEdit(post.id)}
-                className="text-gray-500 hover:text-orange-500"
-              >
-                <FaPencilAlt />
-              </button>
-            )}
-            
-            {onDelete && (
-              <button 
-                onClick={() => onDelete(post.id)}
-                className="text-gray-500 hover:text-red-500"
-              >
-                <FaTrash />
-              </button>
-            )}
-          </div>
+        {isPostOwner && (
+          <button 
+            onClick={() => onDelete(post.id)}
+            className="text-gray-500 hover:text-red-500"
+            aria-label="Excluir post"
+          >
+            <FaTrash />
+          </button>
         )}
       </div>
       
@@ -120,59 +128,94 @@ const PostCard: React.FC<PostCardProps> = ({
         {post.content}
       </div>
       
-      {post.images && post.images.length > 0 && (
+      {post.images.length > 0 && (
         <div className="post-images">
           {post.images.map((image, index) => (
             <img 
-              key={index}
-              src={image}
-              alt={`Imagem ${index + 1}`}
+              key={index} 
+              src={image} 
+              alt={`Imagem ${index + 1} do post`} 
               className="post-image"
             />
           ))}
         </div>
       )}
       
-      {(post.moodText || post.moodEmoji) && (
+      {post.moodText && (
         <div className="post-mood">
-          Humor: {post.moodEmoji} {post.moodText}
+          Humor = {post.moodEmoji} {post.moodText}
         </div>
       )}
       
-      <div className="flex items-center justify-between mt-4 border-t pt-2">
-        <div className="flex gap-4">
-          {onLike && (
-            <button 
-              onClick={() => onLike(post.id)}
-              className="flex items-center gap-1 text-gray-500 hover:text-red-500"
-            >
-              <FaHeart /> <span>{post.likesCount}</span>
-            </button>
-          )}
-          
-          <button 
-            onClick={toggleComments}
-            className="flex items-center gap-1 text-gray-500 hover:text-blue-500"
-          >
-            <FaComment /> <span>{post.comments.length}</span>
-          </button>
-        </div>
+      <div className="flex items-center mt-4 space-x-4">
+        <button 
+          onClick={() => onLike(post.id)}
+          className="flex items-center text-gray-600 hover:text-red-500"
+        >
+          <FaHeart className="mr-1" />
+          <span>{post.likesCount}</span>
+        </button>
+        
+        <button 
+          onClick={() => setShowComments(!showComments)}
+          className="flex items-center text-gray-600 hover:text-blue-500"
+        >
+          <FaComment className="mr-1" />
+          <span>{post.comments.length}</span>
+        </button>
       </div>
       
       {showComments && (
-        <div className="mt-4">
-          <CommentList 
-            comments={post.comments}
-            onDelete={onCommentDelete}
-            currentUserId={currentUserId}
-          />
-          
-          {onCommentSubmit && (
-            <CommentForm 
-              postId={post.id}
-              onSubmit={handleCommentSubmit}
-            />
+        <div className="comment-section">
+          {post.comments.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {post.comments.map(comment => (
+                <div key={comment.id} className="comment">
+                  <div className="comment-header">
+                    <img 
+                      src={comment.user.profileImage || 'https://via.placeholder.com/30'} 
+                      alt={comment.user.displayName} 
+                      className="comment-avatar"
+                    />
+                    <div className="comment-username">{comment.user.displayName}</div>
+                    <div className="ml-auto text-xs text-gray-500">
+                      {formatDate(comment.createdAt)}
+                    </div>
+                    
+                    {currentUserId === comment.user.id && (
+                      <button 
+                        onClick={() => onCommentDelete(comment.id)}
+                        className="ml-2 text-gray-500 hover:text-red-500 text-xs"
+                        aria-label="Excluir comentário"
+                      >
+                        <FaTrash />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="mt-1">{comment.content}</div>
+                  
+                  {comment.images.length > 0 && (
+                    <div className="flex gap-2 mt-2">
+                      {comment.images.map((image, index) => (
+                        <img 
+                          key={index} 
+                          src={image} 
+                          alt={`Imagem ${index + 1} do comentário`} 
+                          className="w-16 h-16 object-cover rounded"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
+          
+          <CommentForm 
+            onSubmit={handleCommentSubmit}
+            isSubmitting={isSubmittingComment}
+          />
         </div>
       )}
     </div>
