@@ -1,128 +1,96 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { FaSmile, FaImage, FaAt } from 'react-icons/fa';
 import { useUser } from '@auth0/nextjs-auth0/client';
+import Image from 'next/image';
 
-// Tipos
 interface PostFormProps {
   onSubmit: (post: {
     content: string;
     moodText: string;
     moodEmoji: string;
     images: File[];
-    mentions: string[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
 }
-
-const PREDEFINED_MOODS = [
-  { text: 'Feliz', emoji: '😃' },
-  { text: 'Triste', emoji: '😢' },
-  { text: 'Raiva', emoji: '😡' },
-  { text: 'Animado', emoji: '🎉' },
-  { text: 'Cansado', emoji: '😴' },
-  { text: 'Apaixonado', emoji: '❤️' },
-  { text: 'Confuso', emoji: '🤔' },
-  { text: 'Entediado', emoji: '😒' },
-];
-
-const EMOJIS = ['😃', '😢', '😡', '🎉', '😴', '❤️', '🤔', '😒', '😎', '😂', '🥳', '😍', '🙄', '😱', '🤩', '😊', '👍', '👎', '🔥', '💯', '🌟', '💪', '🤦‍♂️', '🤦‍♀️'];
 
 const PostForm: React.FC<PostFormProps> = ({ onSubmit }) => {
   const { user } = useUser();
   const [content, setContent] = useState('');
-  const [moodType, setMoodType] = useState('predefined');
-  const [selectedMood, setSelectedMood] = useState(0);
-  const [customMoodText, setCustomMoodText] = useState('');
-  const [customMoodEmoji, setCustomMoodEmoji] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [moodText, setMoodText] = useState('');
+  const [moodEmoji, setMoodEmoji] = useState('');
   const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [mentions, setMentions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
-    
-    // Detectar menções (@username)
-    const mentionRegex = /@(\w+)/g;
-    const foundMentions = e.target.value.match(mentionRegex)?.map(m => m.substring(1)) || [];
-    setMentions(foundMentions);
-  };
+  const moods = [
+    { text: 'Feliz', emoji: '😃' },
+    { text: 'Triste', emoji: '😢' },
+    { text: 'Animado', emoji: '🎉' },
+    { text: 'Cansado', emoji: '😴' },
+    { text: 'Apaixonado', emoji: '❤️' },
+    { text: 'Irritado', emoji: '😡' },
+    { text: 'Confuso', emoji: '🤔' },
+    { text: 'Entediado', emoji: '😒' }
+  ];
 
-  const handleMoodTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setMoodType(e.target.value);
-  };
-
-  const handlePredefinedMoodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedMood(parseInt(e.target.value));
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setCustomMoodEmoji(emoji);
-    setShowEmojiPicker(false);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newImages = Array.from(e.target.files);
       
       // Limitar a 2 imagens
-      const totalImages = [...images, ...newImages].slice(0, 2);
-      setImages(totalImages);
+      const selectedImages = [...images, ...newImages].slice(0, 2);
+      setImages(selectedImages);
       
-      // Criar previews
-      const newPreviews = totalImages.map(file => URL.createObjectURL(file));
-      setImagePreviews(newPreviews);
+      // Criar URLs de preview
+      const newPreviewUrls = selectedImages.map(file => URL.createObjectURL(file));
+      
+      // Revogar URLs antigas para evitar vazamento de memória
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      
+      setPreviewUrls(newPreviewUrls);
     }
   };
 
   const removeImage = (index: number) => {
-    const updatedImages = [...images];
-    updatedImages.splice(index, 1);
-    setImages(updatedImages);
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setImages(newImages);
     
-    const updatedPreviews = [...imagePreviews];
-    URL.revokeObjectURL(updatedPreviews[index]);
-    updatedPreviews.splice(index, 1);
-    setImagePreviews(updatedPreviews);
+    // Atualizar previews
+    URL.revokeObjectURL(previewUrls[index]);
+    const newPreviewUrls = [...previewUrls];
+    newPreviewUrls.splice(index, 1);
+    setPreviewUrls(newPreviewUrls);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!content.trim()) return;
+    if (isSubmitting) return;
     
     setIsSubmitting(true);
     
     try {
-      const moodText = moodType === 'predefined' 
-        ? PREDEFINED_MOODS[selectedMood].text 
-        : customMoodText;
-        
-      const moodEmoji = moodType === 'predefined' 
-        ? PREDEFINED_MOODS[selectedMood].emoji 
-        : customMoodEmoji;
-      
-      await onSubmit({
+      const success = await onSubmit({
         content,
         moodText,
         moodEmoji,
-        images,
-        mentions
+        images
       });
       
-      // Limpar formulário após envio
-      setContent('');
-      setMoodType('predefined');
-      setSelectedMood(0);
-      setCustomMoodText('');
-      setCustomMoodEmoji('');
-      setImages([]);
-      setImagePreviews([]);
-      setMentions([]);
+      if (success) {
+        setContent('');
+        setMoodText('');
+        setMoodEmoji('');
+        
+        // Revogar URLs de preview
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        
+        setImages([]);
+        setPreviewUrls([]);
+      }
     } catch (error) {
       console.error('Erro ao enviar post:', error);
     } finally {
@@ -130,153 +98,131 @@ const PostForm: React.FC<PostFormProps> = ({ onSubmit }) => {
     }
   };
 
+  const handleMoodSelect = (text: string, emoji: string) => {
+    setMoodText(text);
+    setMoodEmoji(emoji);
+  };
+
   if (!user) {
     return (
-      <div className="bg-white/90 text-gray-800 rounded-lg p-4 mb-6 text-center">
-        <p>Faça login para criar posts</p>
+      <div className="bg-white/90 rounded-lg p-4 shadow-md mb-6 text-center">
+        <p className="text-gray-800">Faça login para criar posts</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white/90 text-gray-800 rounded-lg p-4 mb-6">
-      <div className="flex items-start mb-4">
-        <img 
-          src={user.picture || 'https://via.placeholder.com/50'} 
-          alt={user.name || 'Usuário'} 
-          className="w-12 h-12 rounded-full mr-4"
-        />
-        <textarea
-          value={content}
-          onChange={handleContentChange}
-          placeholder="O que está acontecendo?"
-          className="flex-1 p-3 border border-gray-300 rounded-lg resize-none h-24"
-          disabled={isSubmitting}
-        />
-      </div>
-      
-      {/* Previews de imagens */}
-      {imagePreviews.length > 0 && (
-        <div className="image-preview mb-4">
-          {imagePreviews.map((preview, index) => (
-            <div key={index} className="image-preview-item">
-              <img src={preview} alt={`Preview ${index + 1}`} className="image-preview-img" />
-              <button 
-                type="button" 
-                className="image-remove" 
-                onClick={() => removeImage(index)}
-                disabled={isSubmitting}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      
-      <div className="flex flex-wrap items-center justify-between">
-        <div className="flex items-center space-x-4 mb-2 sm:mb-0">
-          {/* Upload de imagens */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center text-gray-600 hover:text-orange-500"
-            disabled={isSubmitting || images.length >= 2}
-          >
-            <FaImage className="mr-1" />
-            <span>{images.length === 0 ? 'Adicionar imagem' : `${images.length}/2 imagens`}</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={isSubmitting || images.length >= 2}
-          />
-          
-          {/* Menções */}
-          <div className="flex items-center text-gray-600">
-            <FaAt className="mr-1" />
-            <span>Menções: {mentions.length}</span>
+    <div className="bg-white/90 rounded-lg p-4 shadow-md mb-6">
+      <form onSubmit={handleSubmit}>
+        <div className="flex items-start mb-4">
+          <div className="mr-3">
+            <Image 
+              src={user.picture || "https://via.placeholder.com/50"} 
+              alt={user.name || "Usuário"} 
+              width={50} 
+              height={50} 
+              className="rounded-full"
+            />
           </div>
-        </div>
-        
-        {/* Seletor de humor */}
-        <div className="mood-selector mb-2 sm:mb-0">
-          <span>Humor:</span>
-          <select 
-            value={moodType} 
-            onChange={handleMoodTypeChange}
-            className="mood-dropdown"
-            disabled={isSubmitting}
-          >
-            <option value="predefined">Pré-definido</option>
-            <option value="custom">Personalizado</option>
-          </select>
           
-          {moodType === 'predefined' ? (
-            <select 
-              value={selectedMood} 
-              onChange={handlePredefinedMoodChange}
-              className="mood-dropdown"
+          <div className="flex-1">
+            <textarea
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-800"
+              placeholder="O que está acontecendo?"
+              rows={3}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
               disabled={isSubmitting}
-            >
-              {PREDEFINED_MOODS.map((mood, index) => (
-                <option key={index} value={index}>
-                  {mood.emoji} {mood.text}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="mood-custom">
-              <input
-                type="text"
-                value={customMoodText}
-                onChange={(e) => setCustomMoodText(e.target.value)}
-                placeholder="Humor..."
-                className="mood-input"
-                disabled={isSubmitting}
-              />
-              <div className="emoji-picker">
+            />
+            
+            {previewUrls.length > 0 && (
+              <div className="mt-2 flex space-x-2">
+                {previewUrls.map((url, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={url} 
+                      alt={`Preview ${index + 1}`} 
+                      className="w-20 h-20 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                      onClick={() => removeImage(index)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between mt-3">
+              <div className="flex items-center space-x-3">
                 <button
                   type="button"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="emoji-button"
-                  disabled={isSubmitting}
+                  className="text-blue-600 hover:text-blue-800"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSubmitting || images.length >= 2}
                 >
-                  {customMoodEmoji || <FaSmile />}
+                  📷 {images.length === 0 ? 'Adicionar foto' : images.length === 1 ? '1 foto' : '2 fotos'}
                 </button>
-                {showEmojiPicker && (
-                  <div className="emoji-popup">
-                    <div className="emoji-grid">
-                      {EMOJIS.map((emoji, index) => (
-                        <div
-                          key={index}
-                          className="emoji-item"
-                          onClick={() => handleEmojiSelect(emoji)}
-                        >
-                          {emoji}
-                        </div>
-                      ))}
-                    </div>
+                
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  multiple={images.length === 0}
+                  onChange={handleImageChange}
+                  disabled={isSubmitting || images.length >= 2}
+                />
+                
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    😊 {moodText || 'Humor'}
+                  </button>
+                  
+                  <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg p-2 z-10 grid grid-cols-4 gap-1 w-48">
+                    {moods.map((mood) => (
+                      <button
+                        key={mood.text}
+                        type="button"
+                        className="p-1 hover:bg-gray-100 rounded text-center"
+                        onClick={() => handleMoodSelect(mood.text, mood.emoji)}
+                      >
+                        <div className="text-xl">{mood.emoji}</div>
+                        <div className="text-xs">{mood.text}</div>
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
+              
+              <button
+                type="submit"
+                className={`px-4 py-2 rounded-full font-bold ${
+                  !content.trim() || isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-yellow-400 text-blue-900 hover:bg-yellow-300'
+                }`}
+                disabled={!content.trim() || isSubmitting}
+              >
+                {isSubmitting ? 'Enviando...' : 'Publicar'}
+              </button>
             </div>
-          )}
+            
+            {moodText && (
+              <div className="mt-2 text-sm text-gray-600">
+                Humor: {moodEmoji} {moodText}
+              </div>
+            )}
+          </div>
         </div>
-        
-        <button
-          type="submit"
-          className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded"
-          disabled={isSubmitting || !content.trim()}
-        >
-          {isSubmitting ? 'Enviando...' : 'Publicar'}
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 };
 
