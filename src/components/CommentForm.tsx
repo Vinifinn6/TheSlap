@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { FaImage, FaAt } from 'react-icons/fa';
 import { useUser } from '@auth0/nextjs-auth0/client';
