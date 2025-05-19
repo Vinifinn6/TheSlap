@@ -1,78 +1,81 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { FaImage, FaAt } from 'react-icons/fa';
 
 interface CommentFormProps {
-  onSubmit: (comment: {
+  postId: string;
+  onSubmit: (postId: string, comment: {
     content: string;
     images: File[];
-    mentions: string[];
   }) => Promise<boolean>;
-  isSubmitting?: boolean;
 }
 
-const CommentForm: React.FC<CommentFormProps> = ({ onSubmit, isSubmitting = false }) => {
+const CommentForm: React.FC<CommentFormProps> = ({ postId, onSubmit }) => {
   const { user } = useUser();
   const [content, setContent] = useState('');
   const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [mentions, setMentions] = useState<string[]>([]);
-  
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setContent(e.target.value);
-    
-    // Detectar menções (@username)
-    const mentionRegex = /@(\w+)/g;
-    const foundMentions = e.target.value.match(mentionRegex)?.map(m => m.substring(1)) || [];
-    setMentions(foundMentions);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newImages = Array.from(e.target.files);
       
       // Limitar a 2 imagens
-      const totalImages = [...images, ...newImages].slice(0, 2);
-      setImages(totalImages);
+      const selectedImages = [...images, ...newImages].slice(0, 2);
+      setImages(selectedImages);
       
-      // Criar previews
-      const newPreviews = totalImages.map(file => URL.createObjectURL(file));
-      setImagePreviews(newPreviews);
+      // Criar URLs de preview
+      const newPreviewUrls = selectedImages.map(file => URL.createObjectURL(file));
+      
+      // Revogar URLs antigas para evitar vazamento de memória
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      
+      setPreviewUrls(newPreviewUrls);
     }
   };
 
   const removeImage = (index: number) => {
-    const updatedImages = [...images];
-    updatedImages.splice(index, 1);
-    setImages(updatedImages);
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setImages(newImages);
     
-    const updatedPreviews = [...imagePreviews];
-    URL.revokeObjectURL(updatedPreviews[index]);
-    updatedPreviews.splice(index, 1);
-    setImagePreviews(updatedPreviews);
+    // Atualizar previews
+    URL.revokeObjectURL(previewUrls[index]);
+    const newPreviewUrls = [...previewUrls];
+    newPreviewUrls.splice(index, 1);
+    setPreviewUrls(newPreviewUrls);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!content.trim() || isSubmitting) return;
+    if (!content.trim()) return;
+    if (isSubmitting) return;
     
-    const success = await onSubmit({
-      content,
-      images,
-      mentions
-    });
+    setIsSubmitting(true);
     
-    if (success) {
-      // Limpar formulário após envio bem-sucedido
-      setContent('');
-      setImages([]);
-      setImagePreviews([]);
-      setMentions([]);
+    try {
+      const success = await onSubmit(postId, {
+        content,
+        images
+      });
+      
+      if (success) {
+        setContent('');
+        
+        // Revogar URLs de preview
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        
+        setImages([]);
+        setPreviewUrls([]);
+      }
+    } catch (error) {
+      console.error('Erro ao enviar comentário:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -81,83 +84,81 @@ const CommentForm: React.FC<CommentFormProps> = ({ onSubmit, isSubmitting = fals
   }
 
   return (
-    <form onSubmit={handleSubmit} className="comment-form">
-      <div className="flex-1">
-        <div className="flex items-center">
-          <img 
-            src={user.picture || 'https://via.placeholder.com/30'} 
-            alt={user.name || 'Usuário'} 
-            className="w-8 h-8 rounded-full mr-2"
-          />
-          <input
-            type="text"
-            value={content}
-            onChange={handleContentChange}
-            placeholder="Escreva um comentário..."
-            className="comment-input flex-1"
-            disabled={isSubmitting}
-          />
-        </div>
-        
-        {/* Previews de imagens */}
-        {imagePreviews.length > 0 && (
-          <div className="flex gap-2 mt-2">
-            {imagePreviews.map((preview, index) => (
-              <div key={index} className="relative w-12 h-12">
-                <img 
-                  src={preview} 
-                  alt={`Preview ${index + 1}`} 
-                  className="w-full h-full object-cover rounded"
-                />
-                <button 
-                  type="button" 
-                  className="absolute -top-1 -right-1 bg-red-500/80 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs"
-                  onClick={() => removeImage(index)}
-                  disabled={isSubmitting}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+    <div className="mb-4">
+      <form onSubmit={handleSubmit}>
+        <div className="flex items-start">
+          <div className="mr-3">
+            <Image 
+              src={user.picture || "https://via.placeholder.com/40"} 
+              alt={user.name || "Usuário"} 
+              width={40} 
+              height={40} 
+              className="rounded-full"
+            />
           </div>
-        )}
-        
-        <div className="flex items-center mt-2">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-gray-500 hover:text-orange-500 mr-3"
-            disabled={isSubmitting || images.length >= 2}
-          >
-            <FaImage />
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={isSubmitting || images.length >= 2}
-          />
           
-          {mentions.length > 0 && (
-            <div className="text-gray-500 text-xs flex items-center">
-              <FaAt className="mr-1" />
-              <span>Menções: {mentions.length}</span>
+          <div className="flex-1">
+            <textarea
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-800 text-sm"
+              placeholder="Escreva um comentário..."
+              rows={2}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              disabled={isSubmitting}
+            />
+            
+            {previewUrls.length > 0 && (
+              <div className="mt-2 flex space-x-2">
+                {previewUrls.map((url, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={url} 
+                      alt={`Preview ${index + 1}`} 
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs"
+                      onClick={() => removeImage(index)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center">
+                <label className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm">
+                  📷 {images.length === 0 ? 'Foto' : images.length === 1 ? '1 foto' : '2 fotos'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    multiple={images.length === 0}
+                    onChange={handleImageChange}
+                    disabled={isSubmitting || images.length >= 2}
+                  />
+                </label>
+              </div>
+              
+              <button
+                type="submit"
+                className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  !content.trim() || isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-yellow-400 text-blue-900 hover:bg-yellow-300'
+                }`}
+                disabled={!content.trim() || isSubmitting}
+              >
+                {isSubmitting ? 'Enviando...' : 'Comentar'}
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
-      
-      <button
-        type="submit"
-        className="comment-button"
-        disabled={isSubmitting || !content.trim()}
-      >
-        {isSubmitting ? 'Enviando...' : 'Comentar'}
-      </button>
-    </form>
+      </form>
+    </div>
   );
 };
 
