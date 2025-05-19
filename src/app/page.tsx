@@ -1,120 +1,146 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import Header from '../components/Header';
+import PostForm from '../components/PostForm';
+import PostCard from '../components/PostCard';
 import { useUser } from '@auth0/nextjs-auth0/client';
-import Header from '../../components/Header';
-import PostForm from '../../components/PostForm';
-import PostCard from '../../components/PostCard';
-
-// Tipos simulados para demonstração
-interface Post {
-  id: string;
-  content: string;
-  user: {
-    id: string;
-    username: string;
-    displayName: string;
-    profileImage: string;
-  };
-  createdAt: string;
-  images: string[];
-  moodText: string;
-  moodEmoji: string;
-  comments: any[];
-  likesCount: number;
-}
 
 export default function Home() {
   const { user, isLoading } = useUser();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
-  // Simular carregamento de posts
+  // Carregar posts
   useEffect(() => {
-    // Em produção, isso seria uma chamada API real
-    const mockPosts: Post[] = [
-      {
-        id: '1',
-        content: 'Estou muito animado com o lançamento do TheSlap.com! Vai ser incrível compartilhar momentos com vocês.',
-        user: {
-          id: '101',
-          username: 'tori',
-          displayName: 'Tori Vega',
-          profileImage: 'https://i.imgur.com/1234abcd.jpg'
-        },
-        createdAt: new Date().toISOString(),
-        images: [],
-        moodText: 'Animado',
-        moodEmoji: '🎉',
-        comments: [
+    const fetchPosts = async () => {
+      setIsLoadingPosts(true);
+      try {
+        // Em produção, isso seria uma chamada API real
+        // Simular delay de rede
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Dados simulados
+        const mockPosts = [
           {
-            id: '201',
-            content: 'Mal posso esperar para ver seus posts!',
+            id: '1',
+            content: 'Estou muito animado para o show de hoje à noite! Quem mais vai estar lá?',
             user: {
-              id: '102',
-              username: 'andre',
-              displayName: 'Andre Harris',
-              profileImage: 'https://i.imgur.com/5678efgh.jpg'
+              id: '101',
+              username: 'tori',
+              displayName: 'Tori Vega',
+              profileImage: 'https://via.placeholder.com/50'
             },
-            createdAt: new Date().toISOString(),
-            images: []
+            createdAt: new Date(Date.now() - 3600000).toISOString(),
+            images: ['https://via.placeholder.com/500x300'],
+            moodText: 'Animada',
+            moodEmoji: '🎉',
+            comments: [
+              {
+                id: 'c1',
+                content: 'Eu vou estar lá! Vai ser incrível!',
+                user: {
+                  id: '102',
+                  username: 'andre',
+                  displayName: 'Andre Harris',
+                  profileImage: 'https://via.placeholder.com/50'
+                },
+                createdAt: new Date(Date.now() - 3000000).toISOString(),
+                images: []
+              }
+            ],
+            likesCount: 12
+          },
+          {
+            id: '2',
+            content: 'Novo vídeo no meu canal! Confira minha nova música "Freak the Freak Out"!',
+            user: {
+              id: '101',
+              username: 'tori',
+              displayName: 'Tori Vega',
+              profileImage: 'https://via.placeholder.com/50'
+            },
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            images: ['https://via.placeholder.com/500x300', 'https://via.placeholder.com/500x300'],
+            moodText: 'Feliz',
+            moodEmoji: '😃',
+            comments: [],
+            likesCount: 24
+          },
+          {
+            id: '3',
+            content: 'Alguém viu meu café? Não consigo encontrar em lugar nenhum e preciso de cafeína AGORA.',
+            user: {
+              id: '103',
+              username: 'jade',
+              displayName: 'Jade West',
+              profileImage: 'https://via.placeholder.com/50'
+            },
+            createdAt: new Date(Date.now() - 172800000).toISOString(),
+            images: [],
+            moodText: 'Irritada',
+            moodEmoji: '😡',
+            comments: [
+              {
+                id: 'c2',
+                content: 'Você deixou na sala de música ontem.',
+                user: {
+                  id: '104',
+                  username: 'beck',
+                  displayName: 'Beck Oliver',
+                  profileImage: 'https://via.placeholder.com/50'
+                },
+                createdAt: new Date(Date.now() - 150000000).toISOString(),
+                images: []
+              },
+              {
+                id: 'c3',
+                content: 'Eu não tocaria nesse café, já deve estar frio há dias.',
+                user: {
+                  id: '102',
+                  username: 'andre',
+                  displayName: 'Andre Harris',
+                  profileImage: 'https://via.placeholder.com/50'
+                },
+                createdAt: new Date(Date.now() - 140000000).toISOString(),
+                images: []
+              }
+            ],
+            likesCount: 8
           }
-        ],
-        likesCount: 5
-      },
-      {
-        id: '2',
-        content: 'Acabei de compor uma nova música! Logo compartilho com vocês.',
-        user: {
-          id: '102',
-          username: 'andre',
-          displayName: 'Andre Harris',
-          profileImage: 'https://i.imgur.com/5678efgh.jpg'
-        },
-        createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hora atrás
-        images: [],
-        moodText: 'Inspirado',
-        moodEmoji: '🎵',
-        comments: [],
-        likesCount: 3
+        ];
+        
+        setPosts(mockPosts);
+      } catch (error) {
+        console.error('Erro ao carregar posts:', error);
+      } finally {
+        setIsLoadingPosts(false);
       }
-    ];
+    };
     
-    setPosts(mockPosts);
+    fetchPosts();
   }, []);
 
-  const handlePostSubmit = async (post: {
-    content: string;
-    moodText: string;
-    moodEmoji: string;
-    images: File[];
-    mentions: string[];
-  }) => {
-    setIsSubmitting(true);
-    
+  const handleCreatePost = async (post) => {
     try {
-      // Simular upload de imagens e criação de post
-      console.log('Enviando post:', post);
-      
       // Em produção, isso seria uma chamada API real
-      // Aqui estamos apenas simulando a adição do post na lista
+      console.log('Criando post:', post);
       
       // Simular delay de rede
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Criar novo post simulado
-      const newPost: Post = {
+      const newPost = {
         id: `post-${Date.now()}`,
         content: post.content,
         user: {
-          id: user?.sub || 'unknown',
-          username: user?.nickname || 'usuario',
-          displayName: user?.name || 'Usuário',
-          profileImage: user?.picture || 'https://via.placeholder.com/50'
+          id: user.sub,
+          username: user.nickname || user.email?.split('@')[0] || 'usuario',
+          displayName: user.name || 'Usuário',
+          profileImage: user.picture || 'https://via.placeholder.com/50'
         },
         createdAt: new Date().toISOString(),
-        images: [], // Em produção, seriam URLs do Imgur após upload
+        images: post.images.length > 0 ? ['https://via.placeholder.com/500x300'] : [],
         moodText: post.moodText,
         moodEmoji: post.moodEmoji,
         comments: [],
@@ -124,143 +150,134 @@ export default function Home() {
       // Adicionar à lista de posts
       setPosts(prevPosts => [newPost, ...prevPosts]);
       
+      return true;
     } catch (error) {
       console.error('Erro ao criar post:', error);
-      alert('Erro ao criar post. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
+      return false;
     }
   };
 
-  const handleLike = (postId: string) => {
-    setPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === postId 
-          ? { ...post, likesCount: post.likesCount + 1 } 
-          : post
-      )
-    );
-  };
-
-  const handleDelete = (postId: string) => {
-    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-  };
-
-  const handleCommentSubmit = async (comment: {
-    content: string;
-    images: File[];
-    mentions: string[];
-    postId: string;
-  }) => {
+  const handleLikePost = async (postId) => {
     try {
-      // Simular envio de comentário
-      console.log('Enviando comentário:', comment);
+      // Em produção, isso seria uma chamada API real
+      console.log('Curtindo post:', postId);
       
       // Simular delay de rede
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Atualizar contagem de likes localmente
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, likesCount: post.likesCount + 1 }
+            : post
+        )
+      );
+    } catch (error) {
+      console.error('Erro ao curtir post:', error);
+    }
+  };
+
+  const handleCommentPost = async (postId, comment) => {
+    try {
+      // Em produção, isso seria uma chamada API real
+      console.log('Comentando no post:', postId, comment);
+      
+      // Simular delay de rede
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Criar novo comentário simulado
       const newComment = {
         id: `comment-${Date.now()}`,
         content: comment.content,
         user: {
-          id: user?.sub || 'unknown',
-          username: user?.nickname || 'usuario',
-          displayName: user?.name || 'Usuário',
-          profileImage: user?.picture || 'https://via.placeholder.com/30'
+          id: user.sub,
+          username: user.nickname || user.email?.split('@')[0] || 'usuario',
+          displayName: user.name || 'Usuário',
+          profileImage: user.picture || 'https://via.placeholder.com/50'
         },
         createdAt: new Date().toISOString(),
-        images: [] // Em produção, seriam URLs do Imgur após upload
+        images: comment.images.length > 0 ? ['https://via.placeholder.com/300x200'] : []
       };
       
-      // Adicionar comentário ao post correspondente
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === comment.postId 
-            ? { ...post, comments: [...post.comments, newComment] } 
+      // Adicionar comentário ao post
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, comments: [...post.comments, newComment] }
             : post
         )
       );
       
       return true;
     } catch (error) {
-      console.error('Erro ao enviar comentário:', error);
+      console.error('Erro ao comentar no post:', error);
       return false;
     }
   };
 
-  const handleCommentDelete = (commentId: string) => {
-    setPosts(prevPosts => 
-      prevPosts.map(post => ({
-        ...post,
-        comments: post.comments.filter(comment => comment.id !== commentId)
-      }))
-    );
+  const handleDeletePost = async (postId) => {
+    try {
+      // Em produção, isso seria uma chamada API real
+      console.log('Excluindo post:', postId);
+      
+      // Simular delay de rede
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Remover post da lista
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+    } catch (error) {
+      console.error('Erro ao excluir post:', error);
+    }
   };
 
   return (
     <main>
       <Header />
       
-      <div className="main-container">
-        {/* Seção "The Right Now" */}
-        <div className="right-now-section">
-          <h2 className="right-now-header">THE RIGHT NOW</h2>
+      <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className="right-now-container mb-6">
+          <h2 className="text-2xl font-bold mb-4 text-yellow-400">THE RIGHT NOW</h2>
           
-          {posts.length > 0 && (
-            <div className="bg-white/90 text-gray-800 rounded-lg p-4 mb-4">
-              <div className="flex items-center mb-2">
-                <img 
-                  src={posts[0].user.profileImage || 'https://via.placeholder.com/40'} 
-                  alt={posts[0].user.displayName} 
-                  className="w-10 h-10 rounded-full mr-3"
-                />
-                <div>
-                  <div className="font-bold text-orange-500">{posts[0].user.displayName}</div>
-                  <div className="text-sm text-gray-500">Último post</div>
-                </div>
-              </div>
-              
-              <div className="mb-2">{posts[0].content}</div>
-              
-              {posts[0].moodText && (
-                <div className="text-sm italic text-gray-600">
-                  Humor = {posts[0].moodEmoji} {posts[0].moodText}
-                </div>
-              )}
-            </div>
-          )}
+          {user && <PostForm onSubmit={handleCreatePost} />}
           
-          <PostForm onSubmit={handlePostSubmit} />
-        </div>
-        
-        {/* Lista de Posts */}
-        <div>
-          <h2 className="text-xl font-bold mb-4 text-yellow-400">POSTS RECENTES</h2>
-          
-          {isLoading ? (
-            <div className="text-center py-8">
-              <p>Carregando posts...</p>
+          {isLoadingPosts ? (
+            <div className="bg-white/90 rounded-lg p-4 shadow-md text-center">
+              <p className="text-gray-800">Carregando posts...</p>
             </div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-8 bg-white/90 text-gray-800 rounded-lg">
-              <p>Nenhum post encontrado. Seja o primeiro a publicar!</p>
+            <div className="bg-white/90 rounded-lg p-4 shadow-md text-center">
+              <p className="text-gray-800">Nenhum post encontrado</p>
             </div>
           ) : (
             <div className="space-y-6">
               {posts.map(post => (
-                <PostCard 
+                <PostCard
                   key={post.id}
-                  post={post}
-                  currentUserId={user?.sub}
-                  onLike={handleLike}
-                  onDelete={handleDelete}
-                  onCommentSubmit={handleCommentSubmit}
-                  onCommentDelete={handleCommentDelete}
+                  id={post.id}
+                  content={post.content}
+                  user={post.user}
+                  createdAt={post.createdAt}
+                  images={post.images}
+                  moodText={post.moodText}
+                  moodEmoji={post.moodEmoji}
+                  comments={post.comments}
+                  likesCount={post.likesCount}
+                  onLike={handleLikePost}
+                  onComment={handleCommentPost}
+                  onDelete={post.user.id === user?.sub ? handleDeletePost : undefined}
                 />
               ))}
             </div>
           )}
+        </div>
+        
+        <div className="fun-facts-container mb-6">
+          <h2 className="text-2xl font-bold mb-4 text-yellow-400">THE FUN FACTS</h2>
+          
+          <div className="bg-blue-200/90 rounded-lg p-4 shadow-md">
+            <p className="text-gray-800">No idioma português, a palavra "pé" também significa "macacos sangrentos."</p>
+          </div>
         </div>
       </div>
     </main>
