@@ -1,197 +1,252 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { FaImage, FaPaperPlane } from 'react-icons/fa';
-import { useUser } from '@auth0/nextjs-auth0/client';
-
-// Tipos
-interface Message {
-  id: string;
-  content: string;
-  senderId: string;
-  receiverId: string;
-  images: string[];
-  createdAt: string;
-  read: boolean;
-}
-
-interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  profileImage: string;
-}
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 interface MessageChatProps {
-  selectedUser: User | null;
-  messages: Message[];
-  currentUserId: string;
+  contact: {
+    id: string;
+    username: string;
+    displayName: string;
+    profileImage: string;
+  };
+  messages: Array<{
+    id: string;
+    content: string;
+    sender: {
+      id: string;
+      username: string;
+      displayName: string;
+      profileImage: string;
+    };
+    receiver: {
+      id: string;
+      username: string;
+      displayName: string;
+      profileImage: string;
+    };
+    createdAt: string;
+    images: string[];
+    read: boolean;
+  }>;
+  isLoading: boolean;
   onSendMessage: (message: {
     content: string;
-    receiverId: string;
     images: File[];
-  }) => Promise<void>;
+  }) => Promise<boolean>;
 }
 
-const MessageChat: React.FC<MessageChatProps> = ({ 
-  selectedUser, 
-  messages, 
-  currentUserId,
-  onSendMessage 
+const MessageChat: React.FC<MessageChatProps> = ({
+  contact,
+  messages,
+  isLoading,
+  onSendMessage
 }) => {
   const [content, setContent] = useState('');
   const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  // Rolar para o final quando novas mensagens chegarem
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Rolar para o final quando as mensagens mudarem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newImages = Array.from(e.target.files);
       
       // Limitar a 2 imagens
-      const totalImages = [...images, ...newImages].slice(0, 2);
-      setImages(totalImages);
+      const selectedImages = [...images, ...newImages].slice(0, 2);
+      setImages(selectedImages);
       
-      // Criar previews
-      const newPreviews = totalImages.map(file => URL.createObjectURL(file));
-      setImagePreviews(newPreviews);
+      // Criar URLs de preview
+      const newPreviewUrls = selectedImages.map(file => URL.createObjectURL(file));
+      
+      // Revogar URLs antigas para evitar vazamento de memória
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      
+      setPreviewUrls(newPreviewUrls);
     }
   };
 
   const removeImage = (index: number) => {
-    const updatedImages = [...images];
-    updatedImages.splice(index, 1);
-    setImages(updatedImages);
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setImages(newImages);
     
-    const updatedPreviews = [...imagePreviews];
-    URL.revokeObjectURL(updatedPreviews[index]);
-    updatedPreviews.splice(index, 1);
-    setImagePreviews(updatedPreviews);
+    // Atualizar previews
+    URL.revokeObjectURL(previewUrls[index]);
+    const newPreviewUrls = [...previewUrls];
+    newPreviewUrls.splice(index, 1);
+    setPreviewUrls(newPreviewUrls);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedUser || (!content.trim() && images.length === 0)) return;
+    if (!content.trim() && images.length === 0) return;
+    if (isSending) return;
     
-    setIsSubmitting(true);
+    setIsSending(true);
     
     try {
-      await onSendMessage({
+      const success = await onSendMessage({
         content,
-        receiverId: selectedUser.id,
         images
       });
       
-      // Limpar formulário após envio
-      setContent('');
-      setImages([]);
-      setImagePreviews([]);
+      if (success) {
+        setContent('');
+        
+        // Revogar URLs de preview
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        
+        setImages([]);
+        setPreviewUrls([]);
+      }
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsSending(false);
     }
   };
 
-  if (!selectedUser) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-800/30 rounded-r-lg">
-        <p className="text-gray-400">Selecione um usuário para iniciar uma conversa</p>
-      </div>
-    );
-  }
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Hoje';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Ontem';
+    } else {
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+  };
+
+  // Agrupar mensagens por data
+  const groupedMessages = messages.reduce((groups, message) => {
+    const date = formatDate(message.createdAt);
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(message);
+    return groups;
+  }, {} as Record<string, typeof messages>);
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      <div className="messages-header">
-        <div className="flex items-center">
-          <img 
-            src={selectedUser.profileImage || 'https://via.placeholder.com/40'} 
-            alt={selectedUser.displayName} 
-            className="w-10 h-10 rounded-full mr-3"
-          />
-          <div>
-            <div className="font-bold text-white">{selectedUser.displayName}</div>
-            <div className="text-sm text-gray-400">@{selectedUser.username}</div>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Cabeçalho do chat */}
+      <div className="bg-blue-900 text-white p-3 rounded-t-lg flex items-center">
+        <Image 
+          src={contact.profileImage || "https://via.placeholder.com/40"} 
+          alt={contact.displayName} 
+          width={40} 
+          height={40} 
+          className="rounded-full mr-3"
+        />
+        <div>
+          <div className="font-bold">{contact.displayName}</div>
+          <div className="text-xs">@{contact.username}</div>
         </div>
       </div>
       
-      <div className="messages-list">
-        {messages.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            <p>Nenhuma mensagem ainda. Comece a conversa!</p>
+      {/* Área de mensagens */}
+      <div className="flex-1 overflow-y-auto p-4 bg-gray-100">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-gray-500">Carregando mensagens...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-gray-500">Nenhuma mensagem ainda. Diga olá!</p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isSentByMe = message.senderId === currentUserId;
-            
-            return (
-              <div 
-                key={message.id} 
-                className={`message-bubble ${isSentByMe ? 'message-sent' : 'message-received'}`}
-              >
-                <div>{message.content}</div>
-                
-                {message.images && message.images.length > 0 && (
-                  <div className="message-images">
-                    {message.images.map((image, index) => (
-                      <img 
-                        key={index}
-                        src={image}
-                        alt={`Imagem ${index + 1}`}
-                        className="message-image"
-                      />
-                    ))}
-                  </div>
-                )}
-                
-                <div className="message-time">
-                  {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
+          <div className="space-y-4">
+            {Object.entries(groupedMessages).map(([date, dateMessages]) => (
+              <div key={date}>
+                <div className="text-center my-3">
+                  <span className="bg-gray-300 text-gray-700 text-xs px-2 py-1 rounded-full">
+                    {date}
+                  </span>
                 </div>
+                
+                {dateMessages.map(message => {
+                  const isFromContact = message.sender.id === contact.id;
+                  
+                  return (
+                    <div 
+                      key={message.id} 
+                      className={`flex ${isFromContact ? 'justify-start' : 'justify-end'}`}
+                    >
+                      <div className={`max-w-[75%] ${isFromContact ? 'bg-white' : 'bg-blue-500 text-white'} rounded-lg p-3 shadow`}>
+                        <p className="whitespace-pre-line">{message.content}</p>
+                        
+                        {message.images && message.images.length > 0 && (
+                          <div className={`mt-2 grid ${message.images.length > 1 ? 'grid-cols-2 gap-2' : 'grid-cols-1'}`}>
+                            {message.images.map((image, index) => (
+                              <div key={index} className="relative">
+                                <img
+                                  src={image}
+                                  alt={`Imagem ${index + 1}`}
+                                  className="w-full h-auto object-cover rounded-lg"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className={`text-xs mt-1 ${isFromContact ? 'text-gray-500' : 'text-blue-200'}`}>
+                          {formatTime(message.createdAt)}
+                          {!isFromContact && (
+                            <span className="ml-1">
+                              {message.read ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
       
-      <form onSubmit={handleSubmit} className="message-form">
-        <div className="flex-1">
-          <input
-            type="text"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Digite sua mensagem..."
-            className="message-input w-full"
-            disabled={isSubmitting}
-          />
-          
-          {/* Previews de imagens */}
-          {imagePreviews.length > 0 && (
-            <div className="flex gap-2 mt-2">
-              {imagePreviews.map((preview, index) => (
-                <div key={index} className="relative w-16 h-16">
+      {/* Formulário de envio */}
+      <div className="p-3 bg-white border-t">
+        <form onSubmit={handleSubmit}>
+          {previewUrls.length > 0 && (
+            <div className="mb-2 flex space-x-2">
+              {previewUrls.map((url, index) => (
+                <div key={index} className="relative">
                   <img 
-                    src={preview} 
+                    src={url} 
                     alt={`Preview ${index + 1}`} 
-                    className="w-full h-full object-cover rounded"
+                    className="w-16 h-16 object-cover rounded-lg"
                   />
-                  <button 
-                    type="button" 
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                  <button
+                    type="button"
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
                     onClick={() => removeImage(index)}
-                    disabled={isSubmitting}
                   >
                     ×
                   </button>
@@ -199,30 +254,47 @@ const MessageChat: React.FC<MessageChatProps> = ({
               ))}
             </div>
           )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <label className="cursor-pointer text-gray-400 hover:text-orange-500">
-            <FaImage size={20} />
-            <input
-              type="file"
-              onChange={handleImageUpload}
-              accept="image/*"
-              multiple
-              className="hidden"
-              disabled={isSubmitting || images.length >= 2}
-            />
-          </label>
           
-          <button
-            type="submit"
-            className="message-send"
-            disabled={isSubmitting || (!content.trim() && images.length === 0)}
-          >
-            <FaPaperPlane />
-          </button>
-        </div>
-      </form>
+          <div className="flex items-center">
+            <label className="mr-2 text-blue-600 hover:text-blue-800 cursor-pointer">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <input
+                type="file"
+                className="hidden"
+                accept="image/*"
+                multiple={images.length === 0}
+                onChange={handleImageChange}
+                disabled={isSending || images.length >= 2}
+              />
+            </label>
+            
+            <input
+              type="text"
+              className="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              placeholder="Digite sua mensagem..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              disabled={isSending}
+            />
+            
+            <button
+              type="submit"
+              className={`ml-2 bg-yellow-400 text-blue-900 rounded-full p-2 ${
+                (!content.trim() && images.length === 0) || isSending
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-yellow-300'
+              }`}
+              disabled={(!content.trim() && images.length === 0) || isSending}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
