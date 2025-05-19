@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Header from '../../components/Header';
+import React, { useState, useEffect } from 'react';
+import Header from '../../components/Header';
 import MessageChat from '../../components/MessageChat';
 import { useUser } from '@auth0/nextjs-auth0/client';
 
