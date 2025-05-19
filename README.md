@@ -1,2 +1,0 @@
-# TheSlap
-Minha Pagina
