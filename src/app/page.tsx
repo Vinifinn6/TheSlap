@@ -1,244 +1,265 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Header from '../../components/Header';
-import React, { useState, useEffect } from 'react';
-import Header from '../../components/Header';
-import MessageChat from '../../components/MessageChat';
+import Link from 'next/link';
 import { useUser } from '@auth0/nextjs-auth0/client';
+import Header from '../../components/Header';
+import PostForm from '../../components/PostForm';
+import PostCard from '../../components/PostCard';
 
 // Tipos simulados para demonstração
-interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  profileImage: string;
-}
-
-interface Message {
+interface Post {
   id: string;
   content: string;
-  senderId: string;
-  receiverId: string;
-  images: string[];
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    profileImage: string;
+  };
   createdAt: string;
-  read: boolean;
+  images: string[];
+  moodText: string;
+  moodEmoji: string;
+  comments: any[];
+  likesCount: number;
 }
 
-export default function MessagesPage() {
+export default function Home() {
   const { user, isLoading } = useUser();
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Simular carregamento de usuários
+  // Simular carregamento de posts
   useEffect(() => {
     // Em produção, isso seria uma chamada API real
-    const mockUsers: User[] = [
+    const mockPosts: Post[] = [
       {
-        id: '101',
-        username: 'tori',
-        displayName: 'Tori Vega',
-        profileImage: 'https://via.placeholder.com/50?text=TV'
+        id: '1',
+        content: 'Estou muito animado com o lançamento do TheSlap.com! Vai ser incrível compartilhar momentos com vocês.',
+        user: {
+          id: '101',
+          username: 'tori',
+          displayName: 'Tori Vega',
+          profileImage: 'https://i.imgur.com/1234abcd.jpg'
+        },
+        createdAt: new Date().toISOString(),
+        images: [],
+        moodText: 'Animado',
+        moodEmoji: '🎉',
+        comments: [
+          {
+            id: '201',
+            content: 'Mal posso esperar para ver seus posts!',
+            user: {
+              id: '102',
+              username: 'andre',
+              displayName: 'Andre Harris',
+              profileImage: 'https://i.imgur.com/5678efgh.jpg'
+            },
+            createdAt: new Date().toISOString(),
+            images: []
+          }
+        ],
+        likesCount: 5
       },
       {
-        id: '102',
-        username: 'andre',
-        displayName: 'Andre Harris',
-        profileImage: 'https://via.placeholder.com/50?text=AH'
-      },
-      {
-        id: '103',
-        username: 'jade',
-        displayName: 'Jade West',
-        profileImage: 'https://via.placeholder.com/50?text=JW'
-      },
-      {
-        id: '104',
-        username: 'beck',
-        displayName: 'Beck Oliver',
-        profileImage: 'https://via.placeholder.com/50?text=BO'
-      },
-      {
-        id: '105',
-        username: 'cat',
-        displayName: 'Cat Valentine',
-        profileImage: 'https://via.placeholder.com/50?text=CV'
+        id: '2',
+        content: 'Acabei de compor uma nova música! Logo compartilho com vocês.',
+        user: {
+          id: '102',
+          username: 'andre',
+          displayName: 'Andre Harris',
+          profileImage: 'https://i.imgur.com/5678efgh.jpg'
+        },
+        createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hora atrás
+        images: [],
+        moodText: 'Inspirado',
+        moodEmoji: '🎵',
+        comments: [],
+        likesCount: 3
       }
     ];
     
-    setUsers(mockUsers);
+    setPosts(mockPosts);
   }, []);
 
-  // Carregar mensagens quando um usuário é selecionado
-  useEffect(() => {
-    if (selectedUser) {
-      setIsLoadingMessages(true);
+  const handlePostSubmit = async (post: {
+    content: string;
+    moodText: string;
+    moodEmoji: string;
+    images: File[];
+    mentions: string[];
+  }) => {
+    setIsSubmitting(true);
+    
+    try {
+      // Simular upload de imagens e criação de post
+      console.log('Enviando post:', post);
       
-      // Simular carregamento de mensagens
-      setTimeout(() => {
-        // Em produção, isso seria uma chamada API real
-        const mockMessages: Message[] = [
-          {
-            id: '1001',
-            content: 'Olá! Como vai?',
-            senderId: user?.sub || 'unknown',
-            receiverId: selectedUser.id,
-            images: [],
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-            read: true
-          },
-          {
-            id: '1002',
-            content: 'Tudo bem e você?',
-            senderId: selectedUser.id,
-            receiverId: user?.sub || 'unknown',
-            images: [],
-            createdAt: new Date(Date.now() - 3500000).toISOString(),
-            read: true
-          },
-          {
-            id: '1003',
-            content: 'Estou bem! Viu o novo episódio?',
-            senderId: user?.sub || 'unknown',
-            receiverId: selectedUser.id,
-            images: [],
-            createdAt: new Date(Date.now() - 3400000).toISOString(),
-            read: true
-          },
-          {
-            id: '1004',
-            content: 'Sim! Foi incrível!',
-            senderId: selectedUser.id,
-            receiverId: user?.sub || 'unknown',
-            images: [],
-            createdAt: new Date(Date.now() - 3300000).toISOString(),
-            read: true
-          }
-        ];
-        
-        setMessages(mockMessages);
-        setIsLoadingMessages(false);
-      }, 1000);
+      // Em produção, isso seria uma chamada API real
+      // Aqui estamos apenas simulando a adição do post na lista
+      
+      // Simular delay de rede
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Criar novo post simulado
+      const newPost: Post = {
+        id: `post-${Date.now()}`,
+        content: post.content,
+        user: {
+          id: user?.sub || 'unknown',
+          username: user?.nickname || 'usuario',
+          displayName: user?.name || 'Usuário',
+          profileImage: user?.picture || 'https://via.placeholder.com/50'
+        },
+        createdAt: new Date().toISOString(),
+        images: [], // Em produção, seriam URLs do Imgur após upload
+        moodText: post.moodText,
+        moodEmoji: post.moodEmoji,
+        comments: [],
+        likesCount: 0
+      };
+      
+      // Adicionar à lista de posts
+      setPosts(prevPosts => [newPost, ...prevPosts]);
+      
+    } catch (error) {
+      console.error('Erro ao criar post:', error);
+      alert('Erro ao criar post. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [selectedUser, user?.sub]);
-
-  const handleUserSelect = (user: User) => {
-    setSelectedUser(user);
   };
 
-  const handleSendMessage = async (message: {
+  const handleLike = (postId: string) => {
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { ...post, likesCount: post.likesCount + 1 } 
+          : post
+      )
+    );
+  };
+
+  const handleDelete = (postId: string) => {
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+  };
+
+  const handleCommentSubmit = async (comment: {
     content: string;
-    receiverId: string;
     images: File[];
+    mentions: string[];
+    postId: string;
   }) => {
     try {
-      // Simular envio de mensagem
-      console.log('Enviando mensagem:', message);
+      // Simular envio de comentário
+      console.log('Enviando comentário:', comment);
       
       // Simular delay de rede
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Criar nova mensagem simulada
-      const newMessage: Message = {
-        id: `msg-${Date.now()}`,
-        content: message.content,
-        senderId: user?.sub || 'unknown',
-        receiverId: message.receiverId,
-        images: [], // Em produção, seriam URLs do Imgur após upload
+      // Criar novo comentário simulado
+      const newComment = {
+        id: `comment-${Date.now()}`,
+        content: comment.content,
+        user: {
+          id: user?.sub || 'unknown',
+          username: user?.nickname || 'usuario',
+          displayName: user?.name || 'Usuário',
+          profileImage: user?.picture || 'https://via.placeholder.com/30'
+        },
         createdAt: new Date().toISOString(),
-        read: false
+        images: [] // Em produção, seriam URLs do Imgur após upload
       };
       
-      // Adicionar à lista de mensagens
-      setMessages(prevMessages => [...prevMessages, newMessage]);
+      // Adicionar comentário ao post correspondente
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === comment.postId 
+            ? { ...post, comments: [...post.comments, newComment] } 
+            : post
+        )
+      );
       
       return true;
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      console.error('Erro ao enviar comentário:', error);
       return false;
     }
   };
 
-  if (isLoading) {
-    return (
-      <main>
-        <Header />
-        <div className="main-container">
-          <div className="text-center py-8">
-            <p>Carregando...</p>
-          </div>
-        </div>
-      </main>
+  const handleCommentDelete = (commentId: string) => {
+    setPosts(prevPosts => 
+      prevPosts.map(post => ({
+        ...post,
+        comments: post.comments.filter(comment => comment.id !== commentId)
+      }))
     );
-  }
-
-  if (!user) {
-    return (
-      <main>
-        <Header />
-        <div className="main-container">
-          <div className="text-center py-8">
-            <p>Você precisa estar logado para acessar as mensagens.</p>
-            <a href="/api/auth/login" className="text-orange-500 hover:underline">
-              Clique aqui para fazer login
-            </a>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  };
 
   return (
     <main>
       <Header />
       
       <div className="main-container">
-        <h1 className="text-2xl font-bold mb-4 text-yellow-400">MENSAGENS</h1>
-        
-        <div className="messages-container">
-          <div className="messages-sidebar">
-            <h2 className="text-lg font-bold mb-3 text-yellow-400">Contatos</h2>
-            
-            {users.length === 0 ? (
-              <div className="text-center py-4 text-gray-400">
-                <p>Nenhum usuário encontrado</p>
-              </div>
-            ) : (
-              <div>
-                {users.map(user => (
-                  <div 
-                    key={user.id}
-                    className={`user-item ${selectedUser?.id === user.id ? 'active' : ''}`}
-                    onClick={() => handleUserSelect(user)}
-                  >
-                    <img 
-                      src={user.profileImage}
-                      alt={user.displayName}
-                      className="user-avatar"
-                    />
-                    <div>
-                      <div className="user-name">{user.displayName}</div>
-                      <div className="text-xs text-gray-400">@{user.username}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* Seção "The Right Now" */}
+        <div className="right-now-section">
+          <h2 className="right-now-header">THE RIGHT NOW</h2>
           
-          {isLoadingMessages ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p>Carregando mensagens...</p>
+          {posts.length > 0 && (
+            <div className="bg-white/90 text-gray-800 rounded-lg p-4 mb-4">
+              <div className="flex items-center mb-2">
+                <img 
+                  src={posts[0].user.profileImage || 'https://via.placeholder.com/40'} 
+                  alt={posts[0].user.displayName} 
+                  className="w-10 h-10 rounded-full mr-3"
+                />
+                <div>
+                  <div className="font-bold text-orange-500">{posts[0].user.displayName}</div>
+                  <div className="text-sm text-gray-500">Último post</div>
+                </div>
+              </div>
+              
+              <div className="mb-2">{posts[0].content}</div>
+              
+              {posts[0].moodText && (
+                <div className="text-sm italic text-gray-600">
+                  Humor = {posts[0].moodEmoji} {posts[0].moodText}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <PostForm onSubmit={handlePostSubmit} />
+        </div>
+        
+        {/* Lista de Posts */}
+        <div>
+          <h2 className="text-xl font-bold mb-4 text-yellow-400">POSTS RECENTES</h2>
+          
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p>Carregando posts...</p>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-8 bg-white/90 text-gray-800 rounded-lg">
+              <p>Nenhum post encontrado. Seja o primeiro a publicar!</p>
             </div>
           ) : (
-            <MessageChat 
-              selectedUser={selectedUser}
-              messages={messages}
-              currentUserId={user.sub || 'unknown'}
-              onSendMessage={handleSendMessage}
-            />
+            <div className="space-y-6">
+              {posts.map(post => (
+                <PostCard 
+                  key={post.id}
+                  post={post}
+                  currentUserId={user?.sub}
+                  onLike={handleLike}
+                  onDelete={handleDelete}
+                  onCommentSubmit={handleCommentSubmit}
+                  onCommentDelete={handleCommentDelete}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
