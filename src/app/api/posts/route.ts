@@ -1,146 +1,130 @@
-import { NextResponse } from "next/server"
-import { getSession } from "@auth0/nextjs-auth0"
-import { sql } from "@/lib/db"
+import { NextResponse } from 'next/server';
+import db from '@/lib/db';
+import imgur from '@/lib/imgur';
 
+// Rota para listar posts
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get("userId")
-
-    let query = `
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    
+    // Buscar posts com imagens, usuários e contagem de comentários
+    const result = await db.query(`
       SELECT 
-        p.id, p.content, p.created_at, p.mood_text, p.mood_emoji,
-        u.id as user_id, u.username, u.display_name, u.profile_image,
-        COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images,
-        COALESCE((SELECT COUNT(*) FROM likes WHERE post_id = p.id), 0) as likes_count
+        p.id, 
+        p.content, 
+        p.mood_text, 
+        p.mood_emoji, 
+        p.created_at,
+        u.id as user_id, 
+        u.username, 
+        u.display_name, 
+        u.profile_image,
+        COUNT(DISTINCT c.id) as comments_count,
+        COUNT(DISTINCT l.id) as likes_count
       FROM posts p
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN post_images pi ON p.id = pi.post_id
-    `
-
-    const params = []
-
-    if (userId) {
-      query += " WHERE p.user_id = $1"
-      params.push(userId)
-    }
-
-    query += `
+      LEFT JOIN comments c ON c.post_id = p.id
+      LEFT JOIN likes l ON l.post_id = p.id
       GROUP BY p.id, u.id
       ORDER BY p.created_at DESC
-      LIMIT 50
-    `
-
-    const result = await sql.query(query, params)
-
-    // For each post, fetch comments
-    const posts = await Promise.all(
-      result.rows.map(async (post) => {
-        const commentsQuery = `
-          SELECT 
-            c.id, c.content, c.created_at,
-            u.id as user_id, u.username, u.display_name, u.profile_image,
-            COALESCE(json_agg(ci.image_url) FILTER (WHERE ci.image_url IS NOT NULL), '[]') as images
-          FROM comments c
-          JOIN users u ON c.user_id = u.id
-          LEFT JOIN comment_images ci ON c.id = ci.comment_id
-          WHERE c.post_id = $1
-          GROUP BY c.id, u.id
-          ORDER BY c.created_at ASC
-        `
-
-        const commentsResult = await sql.query(commentsQuery, [post.id])
-
-        return {
-          ...post,
-          comments: commentsResult.rows,
-        }
-      }),
-    )
-
-    return NextResponse.json(posts)
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    
+    // Buscar imagens para cada post
+    const posts = await Promise.all(result.rows.map(async (post) => {
+      const imagesResult = await db.query(
+        'SELECT image_url FROM post_images WHERE post_id = $1',
+        [post.id]
+      );
+      
+      const images = imagesResult.rows.map(img => img.image_url);
+      
+      return {
+        id: post.id,
+        content: post.content,
+        moodText: post.mood_text,
+        moodEmoji: post.mood_emoji,
+        createdAt: post.created_at,
+        user: {
+          id: post.user_id,
+          username: post.username,
+          displayName: post.display_name,
+          profileImage: post.profile_image
+        },
+        commentsCount: parseInt(post.comments_count),
+        likesCount: parseInt(post.likes_count),
+        images
+      };
+    }));
+    
+    return NextResponse.json({ posts });
   } catch (error) {
-    console.error("Error fetching posts:", error)
-    return NextResponse.json({ error: "Error fetching posts" }, { status: 500 })
+    console.error('Erro ao buscar posts:', error);
+    return NextResponse.json(
+      { error: 'Erro ao buscar posts' },
+      { status: 500 }
+    );
   }
 }
 
+// Rota para criar um novo post
 export async function POST(request: Request) {
   try {
-    const session = await getSession()
-
-    // Check authentication
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { content, moodText, moodEmoji, userId, images } = await request.json();
+    
+    // Validar dados
+    if (!content || !userId) {
+      return NextResponse.json(
+        { error: 'Conteúdo e ID do usuário são obrigatórios' },
+        { status: 400 }
+      );
     }
-
-    const { content, moodText, moodEmoji, images, mentions } = await request.json()
-
-    if (!content || content.trim() === "") {
-      return NextResponse.json({ error: "Content is required" }, { status: 400 })
-    }
-
-    // Insert post
-    const postResult = await sql`
-      INSERT INTO posts (user_id, content, mood_text, mood_emoji) 
-      VALUES (${session.user.sub}, ${content}, ${moodText || null}, ${moodEmoji || null}) 
-      RETURNING id, created_at
-    `
-
-    const postId = postResult[0].id
-
-    // Process images
+    
+    // Criar post
+    const postId = `post_${Date.now()}`;
+    await db.query(
+      'INSERT INTO posts (id, user_id, content, mood_text, mood_emoji) VALUES ($1, $2, $3, $4, $5)',
+      [postId, userId, content, moodText || null, moodEmoji || null]
+    );
+    
+    // Processar imagens se houver
     if (images && images.length > 0) {
-      for (const image of images) {
-        await sql`
-          INSERT INTO post_images (post_id, image_url) 
-          VALUES (${postId}, ${image})
-        `
-      }
-    }
-
-    // Process mentions
-    if (mentions && mentions.length > 0) {
-      for (const username of mentions) {
-        // Check if user exists
-        const userResult = await sql`SELECT id FROM users WHERE username = ${username}`
-
-        if (userResult && userResult.length > 0) {
-          const mentionedUserId = userResult[0].id
-
-          await sql`
-            INSERT INTO mentions (post_id, user_id) 
-            VALUES (${postId}, ${mentionedUserId})
-          `
+      for (const imageData of images) {
+        try {
+          // Converter base64 para buffer
+          const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          // Comprimir imagem
+          const compressedBuffer = await imgur.compressImage(buffer);
+          
+          // Fazer upload para o Imgur
+          const imageUrl = await imgur.uploadImage(compressedBuffer);
+          
+          // Salvar URL da imagem no banco
+          const imageId = `img_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          await db.query(
+            'INSERT INTO post_images (id, post_id, image_url) VALUES ($1, $2, $3)',
+            [imageId, postId, imageUrl]
+          );
+        } catch (imgError) {
+          console.error('Erro ao processar imagem:', imgError);
+          // Continua mesmo se uma imagem falhar
         }
       }
     }
-
-    // Fetch the complete post to return
-    const query = `
-      SELECT 
-        p.id, p.content, p.created_at, p.mood_text, p.mood_emoji,
-        u.id as user_id, u.username, u.display_name, u.profile_image,
-        COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images,
-        0 as likes_count
-      FROM posts p
-      JOIN users u ON p.user_id = u.id
-      LEFT JOIN post_images pi ON p.id = pi.post_id
-      WHERE p.id = $1
-      GROUP BY p.id, u.id
-    `
-
-    const result = await sql.query(query, [postId])
-
-    return NextResponse.json(
-      {
-        ...result.rows[0],
-        comments: [],
-      },
-      { status: 201 },
-    )
+    
+    return NextResponse.json({ 
+      success: true, 
+      postId 
+    });
   } catch (error) {
-    console.error("Error creating post:", error)
-    return NextResponse.json({ error: "Error creating post" }, { status: 500 })
+    console.error('Erro ao criar post:', error);
+    return NextResponse.json(
+      { error: 'Erro ao criar post' },
+      { status: 500 }
+    );
   }
 }
